@@ -54,7 +54,7 @@
 		},
 		{
 			"name": "UBE Vampire sneak",
-			"priority": 0,
+			"priority": 1,
 			"conditions": [
 				{
 					"condition": "IsBodyType",
@@ -96,7 +96,7 @@
 		},
 		{
 			"name": "UBE Mana Breasts",
-			"priority": 0,
+			"priority": 2,
 			"conditions": [
 				{
 					"condition": "IsFemale",
@@ -136,7 +136,7 @@
 		},
 		{
 			"name": "Squint Sneak",
-			"priority": 0,
+			"priority": 3,
 			"conditions": [
 				{
 					"condition": "IsSneaking",
@@ -164,7 +164,7 @@
 		},
 		{
 			"name": "Sad in Water",
-			"priority": 0,
+			"priority": 5,
 			"conditions": [
 				{
 					"condition": "SubmergeLevel",
@@ -517,7 +517,7 @@
 		},
 		{
 			"name": "Rainbow Hair",
-			"priority": 10,
+			"priority": 11,
 			"conditions": [],
 			"triggers": [
 				{
@@ -610,7 +610,7 @@
 		},
 		{
 			"name": "UBE Expressive Anim",
-			"priority": 10,
+			"priority": 12,
 			"conditions": [
 				{
 					"condition": "IsBodyType",
