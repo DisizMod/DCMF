@@ -12,8 +12,8 @@ library. VR is refused at load (no keyframe or headtrack ids, and a face-node
 vtable that diverges). Both need the Address Library for SKSE Plugins for their
 runtime.
 
-Licensed **GPL-3.0-or-later**, because it links CommonLibSSE-NG and ports fixes
-from Mfg Fix NG. See `NOTICE.md`.
+Licensed **GPL-3.0-or-later**, because it links CommonLibSSE-NG, builds on Open Animation Replacer and ports fixes
+from Mfg Fix NG. See `LICENSE` and `THIRD-PARTY.md`.
 
 This is **milestone 1 — prove the render path**. The design document's own build
 order gates everything else behind it: parse a TRI, apply one named morph per
