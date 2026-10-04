@@ -1,0 +1,31 @@
+# Build output
+build/
+out/
+.vs/
+.cache/
+_deps/
+*.user
+CMakeUserPresets.json
+
+# vcpkg writes its resolved dependencies here; vcpkg.json is the source of truth
+vcpkg_installed/
+
+# Crash dumps and logs collected while debugging. Anything worth keeping from
+# one belongs quoted in docs/, not committed whole.
+dump.log
+*.log
+
+# Editor and tooling scratch
+.impeccable/
+
+# Python bytecode from the analysis tools
+__pycache__/
+*.pyc
+
+# Third-party clones kept locally for reference, not vendored
+reference/
+
+# Tester archives, built by hand from the deployed mod
+release/
+
+CLAUDE.md

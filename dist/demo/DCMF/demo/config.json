@@ -1,0 +1,1790 @@
+{
+	"name": "demo",
+	"author": "Disiz",
+	"description": "The legacy demo, carried over: faces for sneaking, water, nudity and night, a vampire's fangs, magicka-driven breasts, and clips on intervals.",
+	"conditionPresets": [],
+	"triggerPresets": [],
+	"overlaySlots": [],
+	"skinSets": [],
+	"modifiers": [
+		{
+			"name": "UBE Night Pupils",
+			"priority": 0,
+			"conditions": [
+				{
+					"condition": "IsBodyType",
+					"requiredVersion": "1.0.0",
+					"Type": "UBE"
+				},
+				{
+					"condition": "OR",
+					"requiredVersion": "1.0.0",
+					"Conditions": [
+						{
+							"condition": "CurrentGameTime",
+							"requiredVersion": "1.0.0",
+							"Comparison": ">=",
+							"Numeric value": {
+								"value": 20.0
+							}
+						},
+						{
+							"condition": "CurrentGameTime",
+							"requiredVersion": "1.0.0",
+							"Comparison": "<",
+							"Numeric value": {
+								"value": 6.0
+							}
+						}
+					]
+				}
+			],
+			"channels": [
+				{
+					"channel": "face:pupillary response_dilation",
+					"Value": {
+						"value": 0.51
+					}
+				}
+			],
+			"description": "Wider pupils at night, on UBE heads.",
+			"startTransition": {
+				"type": "smooth"
+			}
+		},
+		{
+			"name": "UBE Vampire sneak",
+			"priority": 0,
+			"conditions": [
+				{
+					"condition": "IsBodyType",
+					"requiredVersion": "1.0.0",
+					"Type": "UBE"
+				},
+				{
+					"condition": "IsSneaking",
+					"requiredVersion": "1.0.0"
+				}
+			],
+			"channels": [
+				{
+					"channel": "face:uppertusk_left",
+					"Value": {
+						"value": 1.0
+					}
+				},
+				{
+					"channel": "face:uppertusk_right",
+					"Value": {
+						"value": 1.0
+					}
+				},
+				{
+					"channel": "mfg:MoodDisgusted",
+					"Value": {
+						"value": 1.0
+					}
+				}
+			],
+			"description": "Fangs and a snarl while sneaking, on UBE heads.",
+			"startTransition": {
+				"type": "smooth"
+			},
+			"endTransition": {
+				"type": "smooth"
+			}
+		},
+		{
+			"name": "UBE Mana Breasts",
+			"priority": 0,
+			"conditions": [
+				{
+					"condition": "IsFemale",
+					"requiredVersion": "1.0.0"
+				},
+				{
+					"condition": "IsBodyType",
+					"requiredVersion": "1.0.0",
+					"Type": "UBE"
+				}
+			],
+			"channels": [
+				{
+					"channel": "body:big_saggybreasts",
+					"Value": {
+						"actorValue": 25,
+						"actorValueType": "Percentage"
+					},
+					"Read low": {
+						"value": 0.0
+					},
+					"Read high": {
+						"value": 1.0
+					},
+					"Channel low": {
+						"value": -1.0
+					},
+					"Channel high": {
+						"value": 0.0
+					}
+				}
+			],
+			"description": "The breasts follow the magicka left: smaller as it drains.",
+			"startTransition": {
+				"type": "smooth"
+			}
+		},
+		{
+			"name": "Squint Sneak",
+			"priority": 0,
+			"conditions": [
+				{
+					"condition": "IsSneaking",
+					"requiredVersion": "1.0.0"
+				}
+			],
+			"channels": [
+				{
+					"channel": "mfg:SquintLeft",
+					"Value": {
+						"value": 0.4
+					}
+				},
+				{
+					"channel": "mfg:SquintRight",
+					"Value": {
+						"value": 0.4
+					}
+				}
+			],
+			"description": "A squint while sneaking.",
+			"startTransition": {
+				"type": "smooth"
+			}
+		},
+		{
+			"name": "Sad in Water",
+			"priority": 0,
+			"conditions": [
+				{
+					"condition": "SubmergeLevel",
+					"requiredVersion": "1.0.0",
+					"Comparison": ">",
+					"Numeric value": {
+						"value": 0.0
+					}
+				}
+			],
+			"channels": [
+				{
+					"channel": "mfg:MoodSad",
+					"Value": {
+						"value": 0.67
+					}
+				},
+				{
+					"channel": "mfg:DialogueSad",
+					"Value": {
+						"value": 1.0
+					}
+				}
+			],
+			"description": "Sad while in water.",
+			"startTransition": {
+				"type": "smooth"
+			}
+		},
+		{
+			"name": "Modesty Expression",
+			"priority": 8,
+			"conditions": [
+				{
+					"condition": "IsFemale",
+					"requiredVersion": "1.0.0"
+				},
+				{
+					"condition": "IsWornInSlot",
+					"requiredVersion": "1.0.0",
+					"Slot": {
+						"value": 2.0
+					},
+					"negated": true
+				}
+			],
+			"channels": [
+				{
+					"channel": "mfg:MoodSurprise",
+					"Value": {
+						"value": 0.59
+					}
+				},
+				{
+					"channel": "mfg:DialogueHappy",
+					"Value": {
+						"value": 0.0
+					}
+				},
+				{
+					"channel": "mfg:DialogueSurprise",
+					"Value": {
+						"value": 0.67
+					}
+				},
+				{
+					"channel": "mfg:MoodHappy",
+					"Value": {
+						"value": 1.0
+					}
+				}
+			],
+			"description": "Surprised when nothing covers the body.",
+			"startTransition": {
+				"type": "smooth"
+			}
+		},
+		{
+			"name": "Camera Stare",
+			"priority": 4,
+			"conditions": [],
+			"channels": [
+				{
+					"channel": "gaze:mode",
+					"Value": "Track"
+				},
+				{
+					"channel": "gaze:target",
+					"Value": "Camera"
+				},
+				{
+					"channel": "head:mode",
+					"Value": "Track"
+				},
+				{
+					"channel": "head:target",
+					"Value": "Camera"
+				},
+				{
+					"channel": "spine:mode",
+					"Value": "Track"
+				},
+				{
+					"channel": "spine:target",
+					"Value": "Camera"
+				}
+			],
+			"description": "Looks at the camera with the eyes, the head and the spine.",
+			"disabled": true,
+			"startTransition": {
+				"type": "smooth",
+				"time": 0.0
+			}
+		}
+	],
+	"clips": [
+		{
+			"name": "UBE Vampire Sneak Start",
+			"priority": 10,
+			"conditions": [
+				{
+					"condition": "IsBodyType",
+					"requiredVersion": "1.0.0",
+					"Type": "UBE"
+				},
+				{
+					"condition": "IsSneaking",
+					"requiredVersion": "1.0.0"
+				}
+			],
+			"triggers": [],
+			"claims": [
+				{
+					"channel": "mfg:StopBlink"
+				},
+				{
+					"channel": "material:eyes.glow"
+				},
+				{
+					"channel": "material:eyes.glowstrength"
+				},
+				{
+					"channel": "face:uppertusk_left"
+				},
+				{
+					"channel": "face:uppertusk_right"
+				}
+			],
+			"variantMode": "random",
+			"resetRandomOnLoopOrEcho": true,
+			"variants": [
+				{
+					"name": "Default",
+					"weight": 1.0,
+					"order": 0,
+					"keyframes": [
+						{
+							"time": 0.0,
+							"channels": [
+								{
+									"channel": "mfg:StopBlink",
+									"Value": true
+								}
+							]
+						},
+						{
+							"time": 0.5,
+							"channels": [
+								{
+									"channel": "material:eyes.glow",
+									"Value": [
+										1.0,
+										0.0,
+										0.0
+									],
+									"Transition": "Gradient"
+								},
+								{
+									"channel": "material:eyes.glowstrength",
+									"Value": {
+										"value": 20.0
+									},
+									"Transition": "Ease in out"
+								}
+							]
+						},
+						{
+							"time": 1.0,
+							"channels": [
+								{
+									"channel": "face:uppertusk_left",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "face:uppertusk_right",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								}
+							]
+						}
+					]
+				}
+			],
+			"description": "The fangs arriving as sneaking starts: the eyes lit red, then the tusks. Legacy fired it from the modifier's enter; here it fires as its own conditions come to hold."
+		},
+		{
+			"name": "Sneak Check Around",
+			"priority": 20,
+			"conditions": [
+				{
+					"condition": "IsSneaking",
+					"requiredVersion": "1.0.0"
+				}
+			],
+			"triggers": [
+				{
+					"type": "Interval",
+					"Interval": {
+						"value": 10.5
+					}
+				}
+			],
+			"claims": [
+				{
+					"channel": "spine:mode"
+				},
+				{
+					"channel": "spine:yaw"
+				},
+				{
+					"channel": "head:mode"
+				},
+				{
+					"channel": "head:yaw"
+				},
+				{
+					"channel": "head:roll"
+				},
+				{
+					"channel": "gaze:mode"
+				},
+				{
+					"channel": "gaze:yaw"
+				}
+			],
+			"variantMode": "random",
+			"resetRandomOnLoopOrEcho": true,
+			"variants": [
+				{
+					"name": "Default",
+					"weight": 1.0,
+					"order": 0,
+					"keyframes": [
+						{
+							"time": 0.0,
+							"channels": [
+								{
+									"channel": "spine:mode",
+									"Value": "Offset"
+								},
+								{
+									"channel": "head:mode",
+									"Value": "Offset"
+								},
+								{
+									"channel": "gaze:mode",
+									"Value": "Fixed"
+								}
+							]
+						},
+						{
+							"time": 0.6,
+							"channels": [
+								{
+									"channel": "spine:yaw",
+									"Value": {
+										"value": -28.65
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": -16.35
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": -20.09
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "gaze:yaw",
+									"Value": {
+										"value": 12.27
+									},
+									"Transition": "Ease in out"
+								}
+							]
+						},
+						{
+							"time": 1.35,
+							"channels": [
+								{
+									"channel": "spine:yaw",
+									"Value": {
+										"value": 23.3
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": -2.74
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": 18.48
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "gaze:yaw",
+									"Value": {
+										"value": -26.994
+									},
+									"Transition": "Ease in out"
+								}
+							]
+						},
+						{
+							"time": 2.0,
+							"channels": []
+						}
+					]
+				}
+			],
+			"description": "A look over each shoulder every so often while sneaking."
+		},
+		{
+			"name": "Rainbow Hair",
+			"priority": 10,
+			"conditions": [],
+			"triggers": [
+				{
+					"type": "Interval",
+					"Interval": {
+						"value": 30.0
+					}
+				}
+			],
+			"claims": [
+				{
+					"channel": "material:hair.tint"
+				}
+			],
+			"variantMode": "random",
+			"resetRandomOnLoopOrEcho": true,
+			"variants": [
+				{
+					"name": "Default",
+					"weight": 1.0,
+					"order": 0,
+					"keyframes": [
+						{
+							"time": 0.75,
+							"channels": [
+								{
+									"channel": "material:hair.tint",
+									"Value": [
+										1.0,
+										0.0,
+										0.0
+									],
+									"Transition": "Gradient"
+								}
+							]
+						},
+						{
+							"time": 1.5,
+							"channels": [
+								{
+									"channel": "material:hair.tint",
+									"Value": [
+										0.0,
+										0.0,
+										1.0
+									],
+									"Transition": "Gradient",
+									"Colour space": "Oklch"
+								}
+							]
+						},
+						{
+							"time": 2.25,
+							"channels": [
+								{
+									"channel": "material:hair.tint",
+									"Value": [
+										0.0,
+										1.0,
+										0.0
+									],
+									"Transition": "Gradient",
+									"Colour space": "Oklch"
+								}
+							]
+						},
+						{
+							"time": 3.0,
+							"channels": [
+								{
+									"channel": "material:hair.tint",
+									"Value": [
+										1.0,
+										0.0,
+										0.0
+									],
+									"Transition": "Gradient",
+									"Colour space": "Oklch"
+								}
+							]
+						},
+						{
+							"time": 3.35,
+							"channels": []
+						}
+					]
+				}
+			],
+			"description": "The hair runs through red, blue and green every thirty seconds."
+		},
+		{
+			"name": "UBE Expressive Anim",
+			"priority": 10,
+			"conditions": [
+				{
+					"condition": "IsBodyType",
+					"requiredVersion": "1.0.0",
+					"Type": "UBE"
+				}
+			],
+			"triggers": [
+				{
+					"type": "Interval",
+					"Interval": {
+						"value": 30.0
+					}
+				}
+			],
+			"claims": [
+				{
+					"channel": "head:mode"
+				},
+				{
+					"channel": "spine:mode"
+				},
+				{
+					"channel": "spine:yaw"
+				},
+				{
+					"channel": "spine:pitch"
+				},
+				{
+					"channel": "head:pitch"
+				},
+				{
+					"channel": "head:roll"
+				},
+				{
+					"channel": "head:yaw"
+				},
+				{
+					"channel": "gaze:mode"
+				},
+				{
+					"channel": "gaze:yaw"
+				},
+				{
+					"channel": "gaze:pitch"
+				},
+				{
+					"channel": "mfg:BlinkRight"
+				},
+				{
+					"channel": "mfg:BlinkLeft"
+				},
+				{
+					"channel": "mfg:StopBlink"
+				},
+				{
+					"channel": "mfg:Aah"
+				},
+				{
+					"channel": "face:puzzled"
+				},
+				{
+					"channel": "mfg:MoodHappy"
+				},
+				{
+					"channel": "mfg:DialogueHappy"
+				},
+				{
+					"channel": "face:mocking smile_left"
+				},
+				{
+					"channel": "face:mocking smile_right"
+				},
+				{
+					"channel": "mfg:CombatShout"
+				},
+				{
+					"channel": "mfg:MoodAnger"
+				},
+				{
+					"channel": "mfg:DialogueSurprise"
+				},
+				{
+					"channel": "mfg:MoodSurprise"
+				},
+				{
+					"channel": "face:skeptical"
+				},
+				{
+					"channel": "face:yawning"
+				},
+				{
+					"channel": "face:ahegao"
+				}
+			],
+			"variantMode": "random",
+			"resetRandomOnLoopOrEcho": true,
+			"variants": [
+				{
+					"name": "Default",
+					"weight": 1.0,
+					"order": 0,
+					"keyframes": [
+						{
+							"time": 0.0,
+							"channels": [
+								{
+									"channel": "head:mode",
+									"Value": "Fixed"
+								},
+								{
+									"channel": "spine:mode",
+									"Value": "Offset"
+								},
+								{
+									"channel": "spine:yaw",
+									"Value": {
+										"value": -0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "spine:pitch",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": -0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "gaze:mode",
+									"Value": "Fixed"
+								},
+								{
+									"channel": "gaze:pitch",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "mfg:StopBlink",
+									"Value": true
+								},
+								{
+									"channel": "mfg:Aah",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "face:puzzled",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								}
+							]
+						},
+						{
+							"time": 0.0,
+							"channels": [
+								{
+									"channel": "gaze:yaw",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								}
+							],
+							"hold": 0.6
+						},
+						{
+							"time": 0.0,
+							"channels": [
+								{
+									"channel": "head:pitch",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								}
+							],
+							"hold": 1.4
+						},
+						{
+							"time": 0.0,
+							"channels": [
+								{
+									"channel": "mfg:MoodHappy",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "face:mocking smile_left",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								}
+							],
+							"hold": 1.45
+						},
+						{
+							"time": 0.0,
+							"channels": [
+								{
+									"channel": "mfg:DialogueHappy",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "face:mocking smile_right",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								}
+							],
+							"hold": 1.9
+						},
+						{
+							"time": 0.0,
+							"channels": [
+								{
+									"channel": "mfg:CombatShout",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "mfg:MoodAnger",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								}
+							],
+							"hold": 3.5
+						},
+						{
+							"time": 0.6,
+							"channels": [
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.9
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.9
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 0.6,
+							"channels": [
+								{
+									"channel": "spine:yaw",
+									"Value": {
+										"value": -17.89
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "spine:pitch",
+									"Value": {
+										"value": 9.24
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": 7.42
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": -9.22
+									},
+									"Transition": "Ease in out"
+								}
+							],
+							"hold": 0.8
+						},
+						{
+							"time": 0.6,
+							"channels": [
+								{
+									"channel": "gaze:pitch",
+									"Value": {
+										"value": 17.192
+									},
+									"Transition": "Instant"
+								}
+							],
+							"hold": 0.9
+						},
+						{
+							"time": 0.6,
+							"channels": [
+								{
+									"channel": "gaze:mode",
+									"Value": "Fixed"
+								}
+							],
+							"hold": 5.5
+						},
+						{
+							"time": 0.95,
+							"channels": [
+								{
+									"channel": "mfg:Aah",
+									"Value": {
+										"value": 0.75
+									},
+									"Transition": "Ease in"
+								},
+								{
+									"channel": "face:puzzled",
+									"Value": {
+										"value": 0.5
+									},
+									"Transition": "Ease in"
+								}
+							],
+							"hold": 0.5
+						},
+						{
+							"time": 1.0,
+							"channels": [
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 0.35
+						},
+						{
+							"time": 1.5,
+							"channels": [
+								{
+									"channel": "gaze:yaw",
+									"Value": {
+										"value": 30.061
+									},
+									"Transition": "Instant"
+								},
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.9
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.9
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 1.9,
+							"channels": [
+								{
+									"channel": "mfg:Aah",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease in",
+									"Exit transition": "Ease in"
+								},
+								{
+									"channel": "face:puzzled",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease in",
+									"Exit transition": "Ease in"
+								},
+								{
+									"channel": "mfg:MoodHappy",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 1.9,
+							"channels": [
+								{
+									"channel": "face:mocking smile_left",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 1.6
+						},
+						{
+							"time": 2.0,
+							"channels": [
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 0.7
+						},
+						{
+							"time": 2.3,
+							"channels": [
+								{
+									"channel": "spine:yaw",
+									"Value": {
+										"value": -17.07
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "head:pitch",
+									"Value": {
+										"value": -9.73
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": -5.0
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": -45.0
+									},
+									"Transition": "Ease in out"
+								}
+							]
+						},
+						{
+							"time": 2.3,
+							"channels": [
+								{
+									"channel": "spine:pitch",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 0.95
+						},
+						{
+							"time": 2.85,
+							"channels": [
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.9
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.9
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 2.95,
+							"channels": [
+								{
+									"channel": "mfg:DialogueHappy",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "face:mocking smile_right",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 0.55
+						},
+						{
+							"time": 2.95,
+							"channels": [
+								{
+									"channel": "mfg:MoodHappy",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								}
+							],
+							"hold": 1.15
+						},
+						{
+							"time": 3.25,
+							"channels": [
+								{
+									"channel": "spine:yaw",
+									"Value": {
+										"value": -22.92
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "head:pitch",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": 6.0
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": 15.0
+									},
+									"Transition": "Ease in out"
+								}
+							]
+						},
+						{
+							"time": 3.4,
+							"channels": [
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 3.75,
+							"channels": [
+								{
+									"channel": "gaze:pitch",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant",
+									"Exit transition": "Instant"
+								},
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.9
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.9
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 3.75,
+							"channels": [
+								{
+									"channel": "gaze:yaw",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								}
+							],
+							"hold": 1.85
+						},
+						{
+							"time": 4.0,
+							"channels": [
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 2.6
+						},
+						{
+							"time": 4.05,
+							"channels": [
+								{
+									"channel": "spine:pitch",
+									"Value": {
+										"value": 45.0
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:pitch",
+									"Value": {
+										"value": -45.0
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": -5.0
+									},
+									"Transition": "Ease in out"
+								},
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": -0.0
+									},
+									"Transition": "Ease in out"
+								}
+							],
+							"hold": 0.35
+						},
+						{
+							"time": 4.05,
+							"channels": [
+								{
+									"channel": "spine:yaw",
+									"Value": {
+										"value": 11.46
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 2.4
+						},
+						{
+							"time": 4.1,
+							"channels": [
+								{
+									"channel": "mfg:DialogueHappy",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								},
+								{
+									"channel": "face:mocking smile_left",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								},
+								{
+									"channel": "face:mocking smile_right",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 4.1,
+							"channels": [
+								{
+									"channel": "mfg:CombatShout",
+									"Value": {
+										"value": 0.52
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:MoodAnger",
+									"Value": {
+										"value": 0.75
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 0.5
+						},
+						{
+							"time": 4.6,
+							"channels": [
+								{
+									"channel": "mfg:DialogueSurprise",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:MoodSurprise",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 5.1,
+							"channels": [
+								{
+									"channel": "mfg:CombatShout",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								},
+								{
+									"channel": "mfg:MoodAnger",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 5.1,
+							"channels": [
+								{
+									"channel": "mfg:DialogueSurprise",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:MoodSurprise",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 0.2
+						},
+						{
+							"time": 5.25,
+							"channels": [
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": -6.0
+									},
+									"Transition": "Ease in out"
+								}
+							],
+							"hold": 0.5
+						},
+						{
+							"time": 5.25,
+							"channels": [
+								{
+									"channel": "spine:pitch",
+									"Value": {
+										"value": 5.73
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "head:pitch",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 1.2
+						},
+						{
+							"time": 5.25,
+							"channels": [
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease in out"
+								}
+							],
+							"hold": 1.75
+						},
+						{
+							"time": 5.3,
+							"channels": [
+								{
+									"channel": "face:skeptical",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 5.7,
+							"channels": [
+								{
+									"channel": "gaze:yaw",
+									"Value": {
+										"value": -30.061
+									},
+									"Transition": "Ease in"
+								}
+							],
+							"hold": 0.3
+						},
+						{
+							"time": 6.05,
+							"channels": [
+								{
+									"channel": "mfg:DialogueSurprise",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								},
+								{
+									"channel": "mfg:MoodSurprise",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 6.05,
+							"channels": [
+								{
+									"channel": "face:skeptical",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 0.35
+						},
+						{
+							"time": 6.1,
+							"channels": [
+								{
+									"channel": "gaze:yaw",
+									"Value": {
+										"value": -0.0
+									},
+									"Transition": "Ease in",
+									"Exit transition": "Ease in"
+								}
+							]
+						},
+						{
+							"time": 6.2,
+							"channels": [
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": 45.0
+									},
+									"Transition": "Ease in out"
+								}
+							],
+							"hold": 0.25
+						},
+						{
+							"time": 6.4,
+							"channels": [
+								{
+									"channel": "face:yawning",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 6.8,
+							"channels": [
+								{
+									"channel": "face:skeptical",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 6.8,
+							"channels": [
+								{
+									"channel": "face:yawning",
+									"Value": {
+										"value": 0.41
+									},
+									"Transition": "Ease out"
+								}
+							],
+							"hold": 0.25
+						},
+						{
+							"time": 6.95,
+							"channels": [
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 7.0,
+							"channels": [
+								{
+									"channel": "spine:pitch",
+									"Value": {
+										"value": -28.51
+									},
+									"Transition": "Ease out"
+								},
+								{
+									"channel": "head:pitch",
+									"Value": {
+										"value": -28.53
+									},
+									"Transition": "Ease in out"
+								}
+							]
+						},
+						{
+							"time": 7.0,
+							"channels": [
+								{
+									"channel": "spine:yaw",
+									"Value": {
+										"value": -0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								},
+								{
+									"channel": "head:yaw",
+									"Value": {
+										"value": -0.0
+									},
+									"Transition": "Ease in out",
+									"Exit transition": "Ease in out"
+								}
+							],
+							"hold": 1.0
+						},
+						{
+							"time": 7.05,
+							"channels": [
+								{
+									"channel": "face:ahegao",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Instant"
+								}
+							]
+						},
+						{
+							"time": 7.1,
+							"channels": [
+								{
+									"channel": "mfg:BlinkRight",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								},
+								{
+									"channel": "mfg:BlinkLeft",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 7.2,
+							"channels": [
+								{
+									"channel": "face:yawning",
+									"Value": {
+										"value": 0.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								}
+							]
+						},
+						{
+							"time": 7.2,
+							"channels": [
+								{
+									"channel": "face:ahegao",
+									"Value": {
+										"value": 1.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								}
+							],
+							"hold": 0.8
+						},
+						{
+							"time": 7.5,
+							"channels": [
+								{
+									"channel": "spine:pitch",
+									"Value": {
+										"value": 45.0
+									},
+									"Transition": "Ease out",
+									"Exit transition": "Ease out"
+								},
+								{
+									"channel": "head:pitch",
+									"Value": {
+										"value": -45.0
+									},
+									"Transition": "Bounce",
+									"Strength": {
+										"value": 0.5
+									},
+									"Exit transition": "Ease in"
+								},
+								{
+									"channel": "head:roll",
+									"Value": {
+										"value": -10.0
+									},
+									"Transition": "Ease in out",
+									"Exit transition": "Ease in out"
+								}
+							],
+							"hold": 0.5
+						},
+						{
+							"time": 8.35,
+							"channels": []
+						}
+					]
+				}
+			],
+			"description": "Eight seconds of the head, the spine, the eyes and the face moving through a sequence of looks. Carried over from legacy, where it was off too; legacy's repeated frames are holds here.",
+			"disabled": true
+		}
+	]
+}

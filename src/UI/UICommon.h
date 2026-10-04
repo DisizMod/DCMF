@@ -1,0 +1,198 @@
+#pragma once
+
+#include <functional>
+
+#include "imgui.h"
+
+#include <imgui_internal.h>
+
+namespace UI
+{
+	enum class ConditionEvaluateResult : uint8_t
+	{
+		kSuccess,
+		kFailure,
+		kNone  // not answered: no mark
+	};
+
+	namespace UICommon
+	{
+		constexpr ImVec4 NO_COLOR(0.f, 0.f, 0.f, 0.f);
+		constexpr ImVec4 SUCCESS_COLOR(0.2f, 0.8f, 0.2f, 1.f);
+		constexpr ImVec4 SUCCESS_BG_COLOR(0.2f, 0.8f, 0.2f, 0.35f);
+		constexpr ImVec4 FAIL_COLOR(0.8f, 0.2f, 0.2f, 1.f);
+		constexpr ImVec4 UNKNOWN_COLOR(0.8f, 0.8f, 0.f, 1.f);
+		constexpr ImVec4 TREE_LINE_COLOR(0.5f, 0.5f, 0.5f, 1.f);
+		constexpr ImVec4 ERROR_BUTTON_COLOR(0.8f, 0.1f, 0.1f, 0.75f);
+		constexpr ImVec4 ERROR_BUTTON_HOVERED_COLOR(0.8f, 0.1f, 0.1f, 1.f);
+		constexpr ImVec4 ERROR_BUTTON_ACTIVE_COLOR(0.6f, 0.07f, 0.07f, 1.f);
+		constexpr ImVec4 ERROR_TEXT_COLOR(1.f, 0.3f, 0.3f, 1.f);
+		constexpr ImVec4 KEY_TEXT_COLOR(1.f, 0.6f, 0.2f, 1.f);
+		constexpr ImVec4 WARNING_BUTTON_COLOR(0.8f, 0.3f, 0.1f, 0.5f);
+		constexpr ImVec4 WARNING_BUTTON_HOVERED_COLOR(0.8f, 0.3f, 0.1f, 1.f);
+		constexpr ImVec4 WARNING_BUTTON_ACTIVE_COLOR(0.7f, 0.25f, 0.08f, 1.f);
+		constexpr ImVec4 WARNING_TEXT_COLOR(1.f, 0.5f, 0.1f, 1.f);
+		constexpr ImVec4 IGNORED_CHANNEL_BORDER_COLOR(0.6f, 0.45f, 0.85f, 0.8f);  // a keyframe row whose claim is off; red is kept for errors
+		constexpr ImVec4 USER_MOD_COLOR(1.f, 0.9f, 0.4f, 1.f);
+		constexpr ImVec4 DIRTY_COLOR(1.f, 0.5f, 0.2f, 1.f);
+		constexpr ImVec4 LOG_ACTIVATED_COLOR(0.2f, 0.8f, 0.2f, 1.f);
+		constexpr ImVec4 LOG_ECHO_COLOR(0.2f, 0.5f, 0.8f, 1.f);
+		constexpr ImVec4 LOG_LOOP_COLOR(0.4f, 0.7f, 1.f, 1.f);
+		constexpr ImVec4 LOG_REPLACED_COLOR(0.8f, 0.8f, 0.f, 1.f);
+		constexpr ImVec4 LOG_INTERRUPTED_COLOR(0.8f, 0.5f, 0.25f, 1.f);
+		constexpr ImVec4 LOG_VARIANT_COLOR(0.8f, 0.4f, 0.8f, 1.f);
+		constexpr ImVec4 LOG_SYNCHRONIZED_COLOR(0.64f, 0.3f, 1.f, 1.f);
+		constexpr ImVec4 EVENT_LOG_PAYLOAD_COLOR(0.5f, 0.7f, 1.f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TIME_COLOR_SHORT(0.4f, 0.8f, 0.4f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TIME_COLOR_MEDIUM(0.8f, 0.8f, 0.4f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TIME_COLOR_LONG(0.8f, 0.4f, 0.4f, 1.f);
+		constexpr ImVec4 EVENT_LOG_TRIGGERED_TRANSITION_COLOR(0.5f, 0.7f, 1.f, 1.f);
+		constexpr ImVec4 DEFAULT_CONDITION_COLOR(1.f, 1.f, 1.f, 1.f);
+		constexpr ImVec4 CUSTOM_CONDITION_COLOR(0.5f, 0.7f, 1.f, 1.f);
+		constexpr ImVec4 INVALID_CONDITION_COLOR(1.f, 0.3f, 0.3f, 1.f);
+		constexpr ImVec4 GREYED_COLOR(0.5f, 0.5f, 0.5f, 1.f);  // offered, but not for the selected actor
+		constexpr ImVec4 PICKER_SECTION_COLOR(0.5f, 0.7f, 1.f, 1.f);  // the heading of one plugin's run in a picker
+		constexpr ImVec4 CONDITION_PRESET_COLOR(0.f, 0.9f, 0.76f, 1.f);
+		constexpr ImVec4 CONDITION_PRESET_BORDER_COLOR(0.f, 0.53f, 0.5f, 1.f);
+		constexpr ImVec4 CONDITION_SHARED_STATE_BORDER_COLOR(0.45f, 0.45f, 0.22f, 1.00f);
+		constexpr ImVec4 YELLOW_COLOR(1.f, 1.f, 0.f, 1.f);
+		constexpr ImVec4 BLACK_COLOR(0.f, 0.f, 0.f, 1.f);
+		constexpr ImVec4 COMMENT_COLOR(0.34f, 0.65f, 0.29f, 1.f);
+
+		constexpr ImVec4 MULTISELECT_CHIP_COLOR(0.38f, 0.41f, 0.47f, 1.f);
+		constexpr ImVec4 MULTISELECT_CHIP_UNKNOWN_COLOR(0.55f, 0.25f, 0.10f, 1.f);
+
+		void TextUnformattedColored(const ImVec4& a_col, const char* a_text, const char* a_textEnd = nullptr);
+		void TextUnformattedDisabled(const char* a_text, const char* a_textEnd = nullptr);
+		void TextUnformattedWrapped(const char* a_text, const char* a_textEnd = nullptr);
+		bool TextUnformattedEllipsisNoTooltip(const char* a_text, const char* a_textEnd, float a_maxWidth, const ImVec4& a_col = NO_COLOR);
+		bool TextUnformattedEllipsis(const char* a_text, const char* a_textEnd = nullptr, float a_maxWidth = 0.f);
+		bool TextUnformattedEllipsisColored(const ImVec4& a_col, const char* a_text, const char* a_textEnd = nullptr, float a_maxWidth = 0.f);
+		bool TextUnformattedEllipsisShort(const char* a_fullText, const char* a_shortText, const char* a_shortTextEnd = nullptr, float a_maxWidth = 0.f);
+
+		inline void AddTooltip(const char* a_desc, ImGuiHoveredFlags a_flags = ImGuiHoveredFlags_DelayNormal, const ImVec4& a_col = NO_COLOR)
+		{
+			if (ImGui::IsItemHovered(a_flags)) {
+				ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 8, 8 });
+				if (ImGui::BeginTooltip()) {
+					ImGui::PushTextWrapPos(ImGui::GetFontSize() * 50.0f);
+					if (a_col.w != 0.f) {
+						TextUnformattedColored(a_col, a_desc);
+					} else {
+						ImGui::TextUnformatted(a_desc);
+					}
+					ImGui::PopTextWrapPos();
+					ImGui::EndTooltip();
+				}
+				ImGui::PopStyleVar();
+			}
+		}
+
+		inline void HelpMarker(const char* a_desc)
+		{
+			ImGui::AlignTextToFramePadding();
+			TextUnformattedDisabled("(?)");
+			AddTooltip(a_desc, ImGuiHoveredFlags_DelayShort);
+		}
+
+		inline void TextDescriptionRightAligned(const char* a_description)
+		{
+			const auto savedCursorPos = ImGui::GetCursorPos();
+			ImGui::SetCursorPosX(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(a_description).x - ImGui::GetStyle().FramePadding.x);
+			TextUnformattedDisabled(a_description);
+			ImGui::SetCursorPos(savedCursorPos);
+		}
+
+		inline void SecondColumn(float a_percent = 0.5f)
+		{
+			ImGui::SameLine(ImGui::GetWindowContentRegionMax().x * a_percent);
+		}
+
+		inline float FirstColumnWidth(float a_firstColumnWidthPercent)
+		{
+			return ImGui::GetContentRegionAvail().x - (ImGui::GetContentRegionMax().x * (1.f - a_firstColumnWidthPercent)) - ImGui::GetStyle().ItemSpacing.x;
+		}
+
+		struct MultiSelectItem
+		{
+			std::string name;
+			std::string description;
+		};
+
+		// One entry a picker offers. A group puts it under a heading -- a plugin,
+		// say -- and an empty group leaves the list flat.
+		struct PickerItem
+		{
+			std::string label;
+			std::string group;
+			std::uint64_t value = 0;
+			std::string warning;  // drawn in the error colour, this on hover, when set
+		};
+
+		// The width a [Pick] button takes: the two step buttons of an InputInt
+		// and the gap between them, so it drops into the same space.
+		[[nodiscard]] float PickerButtonWidth();
+
+		// A [Pick] button and the popup it opens: a search box over the items.
+		// The items are asked for only while the popup is open. True when one
+		// was picked, its value in a_outValue.
+		bool Picker(const char* a_id, const std::function<std::vector<PickerItem>()>& a_items,
+			std::uint64_t a_current, std::uint64_t& a_outValue);
+
+		// A group of an async picker: shown closed, its items asked for the first time it is opened
+		struct AsyncPickerGroup
+		{
+			std::string label;
+			std::uint64_t key = 0;
+			std::string section;  // a node the group sits in, a plugin; groups of one section listed together, none for a flat list
+		};
+
+		// The Pick button and a popup of groups whose items are fetched on the main thread the first time a group is
+		// opened, "Loading..." until they arrive, and kept for the session; for lists too costly to build whole, such
+		// as dialogue lines read from the plugins. No search: a group not opened has nothing to search
+		bool AsyncPicker(const char* a_id, const std::function<std::vector<AsyncPickerGroup>()>& a_groups,
+			std::function<std::vector<PickerItem>(std::uint64_t)> a_items, std::uint64_t a_current, std::uint64_t& a_outValue);
+
+		bool MultiSelectCombo(const char* a_id, std::vector<std::string>& a_selected,
+			const std::vector<MultiSelectItem>& a_options, bool a_bEditable,
+			const char* a_manualEntryHint, const char* a_unknownTooltip);
+
+		// How many chips are drawn before the rest are folded into a +N.
+		constexpr int MULTISELECT_VISIBLE_CHIPS = 2;
+
+		void DrawConditionEvaluateResult(ConditionEvaluateResult a_result);
+		void DrawWarningIcon();
+
+		void ButtonWithConfirmationModal(std::string_view a_label, std::string_view a_confirmation, const std::function<void()>& a_func, const ImVec2& a_buttonSize = ImVec2(0, 0));
+
+		// modified from imgui with added text
+		bool ArrowButtonText(const char* a_label, ImGuiDir a_dir, bool a_bArrowOnRight, const ImVec2& a_sizeArg = ImVec2(0, 0), ImGuiButtonFlags a_flags = ImGuiButtonFlags_None);
+		bool PopupToggleButton(const char* a_label, const char* a_popupId, const ImVec2& a_sizeArg = ImVec2(0, 0));
+
+		// modified from imgui_stdlib with added support for a max length
+		bool InputText(const char* a_label, std::string* a_str, int a_maxLength, ImGuiInputTextFlags a_flags = 0, ImGuiInputTextCallback a_callback = nullptr, void* a_userData = nullptr);
+		bool InputTextMultiline(const char* a_label, std::string* a_str, int a_maxLength, const ImVec2& a_size = ImVec2(0, 0), ImGuiInputTextFlags a_flags = 0, ImGuiInputTextCallback a_callback = nullptr, void* a_userData = nullptr);
+		bool InputTextWithHint(const char* a_label, const char* a_hint, std::string* a_str, int a_maxLength, ImGuiInputTextFlags a_flags = 0, ImGuiInputTextCallback a_callback = nullptr, void* a_userData = nullptr);
+
+		// inspired by reshade's key input box
+		std::string GetKeyName(const uint32_t a_keycode);
+		std::string GetKeyName(const uint32_t a_key[4]);
+		bool InputKey(const char* a_label, uint32_t a_key[4]);
+
+		// modified from imgui with removed mouse cursor change
+		void ScaleAllSizes(ImGuiStyle& a_style, float a_scaleFactor);
+
+		// Adapted from https://github.com/khlorz/imgui-combo-filter/ which adapted it from https://github.com/forrestthewoods/lib_fts/blob/master/code/fts_fuzzy_match.h
+		bool FuzzySearch(char const* a_pattern, char const* a_haystack, int& a_outScore, unsigned char a_matches[], int a_maxMatches, int& a_outMatches);
+		bool FuzzySearchRecursive(const char* a_pattern, const char* a_src, int& a_outScore, const char* a_strBegin, const unsigned char a_srcMatches[], unsigned char a_newMatches[], int a_maxMatches, int& a_nextMatch, int& a_recursionCount, int a_recursionLimit);
+
+		void SetScrollToComboItemJump(ImGuiWindow* a_listbox_window, int a_index);
+		void SetScrollToComboItemUp(ImGuiWindow* a_listbox_window, int a_index);
+		void SetScrollToComboItemDown(ImGuiWindow* a_listbox_window, int a_index);
+
+		// modified from imgui to draw a collapsed leaf node with no label
+		bool TreeNodeCollapsedLeaf(const char* a_label, ImGuiTreeNodeFlags a_flags);
+		bool TreeNodeCollapsedLeaf(const void* a_ptrId, ImGuiTreeNodeFlags a_flags, const char* a_label);
+		bool TreeNodeCollapsedLeafBehavior(ImGuiID a_id, ImGuiTreeNodeFlags a_flags, const char* a_label);
+	}
+}

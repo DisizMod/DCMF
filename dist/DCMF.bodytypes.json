@@ -1,0 +1,124 @@
+{
+  "bodies": [
+    {
+      "name": "3BA",
+      "uv": "CBBE",
+      "matches": [
+        "CBBE 3BBB Body Amazing"
+      ]
+    },
+    {
+      "name": "CBBE",
+      "uv": "CBBE",
+      "matches": [
+        "CBBE Body",
+        "CBBE Body Physics",
+        "CBBE Body Special",
+        "CBBE NeverNude",
+        "CBBE NeverNude Physics",
+        "CBBE Underwear",
+        "CBBE Underwear Physics",
+        "COR - CBBE Body",
+        "COR - CBBE Body Physics",
+        "COR - CBBE Body Special",
+        "COR - CBBE NeverNude",
+        "COR - CBBE NeverNude Physics",
+        "COR - CBBE Underwear",
+        "COR - CBBE Underwear Physics"
+      ]
+    },
+    {
+      "name": "BHUNP",
+      "uv": "UNP",
+      "matches": [
+        "BHUNP 3BBB Advanced Ver 3",
+        "BHUNP 3BBB Advanced Ver 4"
+      ]
+    },
+    {
+      "name": "UNP",
+      "uv": "UNP",
+      "matches": []
+    },
+    {
+      "name": "TBD",
+      "uv": "UNP",
+      "matches": [
+        "TBD - Body - Nude",
+        "TBD - CBPC - Nude",
+        "TBD - Reference - CBPC Body",
+        "TBD - Underwear - Vanilla",
+        "TBD - Underwear - Leather",
+        "TBD - Underwear - Fancy Black",
+        "TBD - Underwear - Black Leather",
+        "TBD - Underwear - Fancy Blue",
+        "TBD - Underwear - Fancy Red",
+        "TBD - Underwear - Fancy White",
+        "TBD - Underwear - Fancy Green",
+        "TBD - Underwear - Vanilla (CBPC)",
+        "TBD - Underwear - Leather (CBPC)",
+        "TBD - Underwear - Fancy Black (CBPC)",
+        "TBD - Underwear - Black Leather (CBPC)",
+        "TBD - Underwear - Fancy Blue (CBPC)",
+        "TBD - Underwear - Fancy Red (CBPC)",
+        "TBD - Underwear - Fancy White (CBPC)",
+        "TBD - Underwear - Fancy Green (CBPC)"
+      ]
+    },
+    {
+      "name": "UBE",
+      "uv": "UBE",
+      "matches": [
+        "UBE SE 2.0 Release Body",
+        "UBE SE 2.0 Release Body Male"
+      ]
+    },
+    {
+      "name": "HIMBO",
+      "uv": "Vanilla Male",
+      "matches": [
+        "HIMBO Body - SOS",
+        "HIMBO Body - SOS High Poly",
+        "HIMBO Body - Vanilla Nevernude",
+        "HIMBO Body - Vanilla High Poly Nevernude"
+      ]
+    }
+  ],
+  "heads": [
+    {
+      "name": "High Poly Head",
+      "uv": "Vanilla",
+      "matches": [
+        "kl/high poly head/"
+      ]
+    },
+    {
+      "name": "UBE",
+      "uv": "UBE",
+      "matches": [
+        "!ube/head/"
+      ]
+    },
+    {
+      "name": "COtR",
+      "uv": "COtR",
+      "matches": [
+        "!cor/head/"
+      ]
+    },
+    {
+      "name": "Khajiit",
+      "uv": "Khajiit",
+      "matches": [
+        "headkhajiit.nif"
+      ]
+    },
+    {
+      "name": "Argonian",
+      "uv": "Argonian",
+      "matches": [
+        "headargonian.nif"
+      ]
+    }
+  ]
+}

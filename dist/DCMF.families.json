@@ -1,0 +1,54 @@
+{
+  "_comment": [
+    "Which UV layout an actor's head and body have, decided from exact facts and",
+    "never from a name. In order: the model path of the head part or skin addon",
+    "the actor wears, when it is under a folder in 'paths'; else the first row in",
+    "'plugins' whose plugin is loaded; else vanilla for the sex. Layouts: vanilla",
+    "or ube for a head; vanillafemale, vanillamale, cbbe, unp or ube for a body.",
+    "",
+    "This file is the whole table: nothing is built into the plugin, so what is",
+    "here is what is in force. Earlier rows win. A body or head mod this table",
+    "does not know is added as a row. Without this file every actor reads as",
+    "vanilla and no overlay card has a figure to draw on.",
+    "",
+    "'figures' are the races an overlay card may draw a texture row on, as",
+    "Plugin.esp|hexid: each is judged by this table for its own head and body",
+    "layouts, and a row is drawn on the first whose layout is the row's.",
+    "",
+    "Only mods that replace the SHARED vanilla-path body belong in 'plugins':",
+    "UBE and COtR keep their meshes under folders of their own and add races",
+    "rather than replace the default body, so their 'paths' rows decide, and a",
+    "plugin row for them would misjudge every vanilla-race actor.",
+    "",
+    "'shapes' name a body by the geometry names in its mesh -- BodySlide writes",
+    "the slider set's target shape into the file, so 'CBBE' is CBBE's body and",
+    "'3BA' is 3BA's, whatever plugin is loaded. Every name listed has to be on",
+    "the actor's own skin mesh; 'prefix' restricts a row to a folder, for a name",
+    "another body shares ('BaseShape' is BHUNP's and UBE's). A matching row",
+    "decides the Body condition, and its 'layout' the body's UV layout ahead of",
+    "the paths and plugins rows. Earlier rows win. Bodies: vanillafemale,",
+    "vanillamale, cbbe, 3ba, unp, bhunp, ube, himbo."
+  ],
+  "figures": [
+    "Skyrim.esm|013746",
+    "UBE_AllRace.esp|05A184"
+  ],
+  "plugins": [
+    { "plugin": "BHUNP3BBB.esp", "femaleBody": "unp" },
+    { "plugin": "CBBE.esp", "femaleBody": "cbbe" }
+  ],
+  "shapes": [
+    { "shapes": ["3BA"], "body": "3ba", "layout": "cbbe" },
+    { "shapes": ["CBBE"], "body": "cbbe", "layout": "cbbe" },
+    { "shapes": ["BaseShape"], "prefix": "!UBE\\", "body": "ube", "layout": "ube" },
+    { "shapes": ["BaseShape", "BaseShapeCanal"], "body": "bhunp", "layout": "unp" },
+    { "shapes": ["UNP"], "body": "unp", "layout": "unp" },
+    { "shapes": ["HIMBO - Body HP"], "body": "himbo", "layout": "vanillamale" }
+  ],
+  "paths": [
+    { "prefix": "!UBE\\Head\\", "head": "ube" },
+    { "prefix": "!UBE\\", "body": "ube" },
+    { "prefix": "KL\\High Poly Head\\", "head": "vanilla" },
+    { "prefix": "COtR\\", "head": "ube" }
+  ]
+}

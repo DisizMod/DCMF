@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
+  "name": "openexpressionreplacer",
+  "version-semver": "0.1.0",
+  "description": "Facial animation authority for Skyrim SE 1.5.97",
+  "supports": "windows & x64",
+  "builtin-baseline": "d1857c260f2072ccdf50bba1bc36d0196e4283df",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    },
+    "boost-container-hash",
+    "directxmath",
+    "directxtk",
+    "fmt",
+    "nlohmann-json",
+    "rapidcsv",
+    "rapidjson",
+    "simpleini",
+    "spdlog",
+    "toml11",
+    "xbyak",
+    "minhook",
+    {
+      "name": "imgui",
+      "features": [
+        "dx11-binding",
+        "win32-binding"
+      ]
+    }
+  ]
+}
