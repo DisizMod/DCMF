@@ -25,8 +25,8 @@ namespace UI
 		constexpr float kTailWidth = 24.f;
 
 		// The dots' colours in the frame rows: moving and held
-		constexpr ImU32 kMovingColour = IM_COL32(255, 191, 102, 255);
-		constexpr ImU32 kHeldColour = IM_COL32(115, 179, 255, 255);
+		constexpr ImU32 kMovingColour = IM_COL32(115, 179, 255, 255);
+		constexpr ImU32 kHeldColour = IM_COL32(255, 220, 80, 255);
 		constexpr ImU32 kCurveColour = IM_COL32(200, 200, 200, 255);
 
 		// A little room past the end, and never shorter than a second
