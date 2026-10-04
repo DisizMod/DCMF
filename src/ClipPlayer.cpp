@@ -522,10 +522,8 @@ namespace ClipPlayer
 					auto& timer = a_clips.intervals[trigger];
 					if (bPlaying) {
 						timer.nextFire.reset();
-						timer.endedAt.reset();
 					} else if (!timer.nextFire) {
 						timer.nextFire = a_now + SecondsOf(trigger->interval, timer, identity, a_refr);
-						timer.endedAt = a_now;
 					} else if (a_now >= *timer.nextFire) {
 						byInterval.try_emplace(clip, trigger);
 						timer.nextFire.reset();

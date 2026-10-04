@@ -4998,14 +4998,14 @@ namespace UI
 						const auto it = a_clips.firedAt.find(a_trigger.get());
 						return it != a_clips.firedAt.end() ? std::optional<float>(it->second) : std::nullopt;
 					});
-					// An interval counts from the clip's end, so that is what it shows
-					const auto endedAt = state->clips.With([&](const ActorState::ClipState& a_clips) -> std::optional<float> {
+					// An interval counting down shows when it fires next
+					const auto nextFire = state->clips.With([&](const ActorState::ClipState& a_clips) -> std::optional<float> {
 						const auto it = a_clips.intervals.find(a_trigger.get());
-						return it != a_clips.intervals.end() ? it->second.endedAt : std::nullopt;
+						return it != a_clips.intervals.end() ? it->second.nextFire : std::nullopt;
 					});
 					ImGui::SameLine();
-					if (endedAt) {
-						ImGui::TextDisabled("counting %.1f s since the clip ended", Resolve::Now() - *endedAt);
+					if (nextFire) {
+						ImGui::TextDisabled("next in %.1f s", (std::max)(*nextFire - Resolve::Now(), 0.f));
 					} else if (firedAt) {
 						ImGui::TextDisabled("fired %.1f s ago", Resolve::Now() - *firedAt);
 					} else {
