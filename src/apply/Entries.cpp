@@ -76,7 +76,7 @@ namespace Apply
 
 		// The bones the spine and head poses turn, before the scan: their scale alone in the pickers
 		for (const auto* bone : { "NPC Spine1 [Spn1]", "NPC Spine2 [Spn2]", "NPC Neck [Neck]", "NPC Head [Head]" }) {
-			AddBone(bone, "Skeleton · character assets", true);
+			AddBone(bone, true);
 		}
 
 		// Grouped by what they belong to: a head part with its own material, the skin's material with the skin set
@@ -223,14 +223,14 @@ namespace Apply
 		}
 	}
 
-	// A bone's six entries, in the order Bone::Property counts; a pose bone shows its scale alone
-	void Entries::AddBone(std::string_view a_bone, std::string_view a_group, bool a_bPose)
+	// A bone's six entries, in the order Bone::Property counts, grouped under the bone; a pose bone shows its scale alone
+	void Entries::AddBone(std::string_view a_bone, bool a_bPose)
 	{
 		const auto add = [&](std::string_view a_property, std::string a_description, ValueType a_type, float a_low, float a_high, float a_neutral, std::vector<std::string> a_modes = {}) {
 			Entry entry;
 			entry.name = std::format("{}.{}", a_bone, a_property);
-			entry.display = std::format("{} {}", a_bone, a_property);
-			entry.group = a_group;
+			entry.display = a_property;
+			entry.group = a_bone;
 			entry.description = std::move(a_description);
 			entry.type = a_type;
 			entry.low = a_low;
@@ -251,10 +251,10 @@ namespace Apply
 
 	void Entries::Populate(const Scan::Catalogue& a_catalogue)
 	{
-		// Bones: every one the load order's meshes bring, under what brings it
+		// Bones: every one the load order's meshes bring
 		for (const auto& bone : a_catalogue.bones) {
 			if (!Find(Kind::kBone, std::format("{}.mode", bone.name)).IsValid()) {
-				AddBone(bone.name, bone.category, false);
+				AddBone(bone.name, false);
 			}
 		}
 
