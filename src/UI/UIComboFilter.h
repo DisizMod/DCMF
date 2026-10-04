@@ -505,7 +505,7 @@ namespace UI
 
 		static constexpr auto kGroupCategory = "Group";
 
-		// With a reference actor, a morph its TRIs do not carry is greyed, still pickable; recoloured only when the
+		// With a reference actor, a morph its TRIs do not carry or a bone its 3D does not have is greyed, still pickable; recoloured only when the
 		// actor or its parts tree changes
 		std::vector<Info>& GetChannelInfos(RE::TESObjectREFR* a_reference)
 		{
@@ -525,7 +525,8 @@ namespace UI
 					const auto kind = id.GetKind();
 					const auto entry = entries.Get(id);
 					const bool bMorph = (kind == Apply::Kind::kBodyMorph || kind == Apply::Kind::kFaceMorph) && entry.bScanned;
-					const bool bApplicable = !parts || !parts->bLoaded || !bMorph || parts->morphs.contains(entry.name);
+					const bool bBone = kind == Apply::Kind::kBone;
+					const bool bApplicable = !parts || !parts->bLoaded || (bBone ? parts->bones.contains(entry.group) : !bMorph || parts->morphs.contains(entry.name));
 					info.textColor = bApplicable ? UICommon::DEFAULT_CONDITION_COLOR : UICommon::GREYED_COLOR;
 				}
 			}

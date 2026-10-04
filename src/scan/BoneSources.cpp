@@ -13,7 +13,7 @@ namespace Scan
 	{
 		constexpr auto kPath = "Data/SKSE/Plugins/DCMF.bones.json"sv;
 
-		// The meshes DCMF.bones.json lists, each under its group's name
+		// The meshes DCMF.bones.json lists; a bone's category is the file it was first found in
 		class BoneRecords : public ISource
 		{
 		public:
@@ -31,22 +31,15 @@ namespace Scan
 				const std::string text{ std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{} };
 				rapidjson::Document document;
 				const bool bValid = !document.Parse(text.data()).HasParseError() && document.IsObject();
-				const auto groups = bValid ? document.FindMember("groups") : document.MemberEnd();
-				if (!bValid || groups == document.MemberEnd() || !groups->value.IsArray()) {
-					a_context.Report(kPath, "not valid JSON with a groups list; no bone is scanned");
+				const auto files = bValid ? document.FindMember("files") : document.MemberEnd();
+				if (!bValid || files == document.MemberEnd() || !files->value.IsArray()) {
+					a_context.Report(kPath, "not valid JSON with a files list; no bone is scanned");
 					return;
 				}
-				for (const auto& group : groups->value.GetArray()) {
-					const auto name = group.IsObject() ? group.FindMember("name") : group.MemberEnd();
-					const auto files = group.IsObject() ? group.FindMember("files") : group.MemberEnd();
-					if (!group.IsObject() || name == group.MemberEnd() || !name->value.IsString() || files == group.MemberEnd() || !files->value.IsArray()) {
-						a_context.Report(kPath, "a group without a name and a files list is not read");
-						continue;
-					}
-					for (const auto& path : files->value.GetArray()) {
-						if (path.IsString()) {
-							a_context.out.boneSources.push_back({ Files::Normalize(path.GetString()), {}, name->value.GetString(), {} });
-						}
+				for (const auto& path : files->value.GetArray()) {
+					if (path.IsString()) {
+						auto model = Files::Normalize(path.GetString());
+						a_context.out.boneSources.push_back({ model, {}, model, {} });
 					}
 				}
 				a_context.progress.total = static_cast<uint32_t>(a_context.out.boneSources.size());
@@ -54,7 +47,7 @@ namespace Scan
 			}
 		};
 
-		// A bone's category: the first group that has it
+		// A bone's category: the first file that has it
 		std::string CategoryOf(const std::vector<BoneSource>& a_sources, const std::vector<std::size_t>& a_from)
 		{
 			return a_sources[a_from.front()].record;
