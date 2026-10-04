@@ -759,7 +759,7 @@ namespace UI
 				}
 				// A morph this actor's TRIs lack left out, and what the filter does not match
 				const bool bMorph = (kind == Apply::Kind::kBodyMorph || kind == Apply::Kind::kFaceMorph) && a_entry.bScanned;
-				if ((bMorph && !parts->morphs.contains(a_entry.name)) || !matches({ a_id, a_entry })) {
+				if ((bMorph && !parts->morphs.contains(a_entry.name)) || (kind == Apply::Kind::kBone && !parts->bones.contains(a_entry.group)) || !matches({ a_id, a_entry })) {
 					return;
 				}
 				auto& categories = byFamily[family];

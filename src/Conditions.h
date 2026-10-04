@@ -2063,6 +2063,23 @@ namespace Conditions
 		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
 	};
 
+	class HasBoneCondition : public ConditionBase
+	{
+	public:
+		HasBoneCondition();
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return textComponent->GetArgument(); }
+
+		[[nodiscard]] RE::BSString GetName() const override { return "HasBone"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if a bone of this name is on the actor's loaded 3D: its skeleton's, or one a worn mesh brings. False while the 3D is not loaded."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
+
+		TextConditionComponent* textComponent;
+
+	protected:
+		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
+	};
+
 	// IsBodyType and IsHeadType: one class, the part says which
 	class SkinTypeCondition : public ConditionBase
 	{

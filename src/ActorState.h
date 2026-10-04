@@ -41,6 +41,7 @@ namespace ActorState
 		std::unordered_set<std::string> morphs;  // every morph name on every TRI here, as the scan read them
 		std::unordered_set<std::string> bodyMorphs;  // those of the body TRIs alone
 		std::unordered_set<std::string> faceMorphs;  // and of the head's
+		std::unordered_set<std::string> bones;       // every node's name on the 3D
 	};
 
 	// One modifier on the actor: since when, and since when it is leaving, on the resolver's clock

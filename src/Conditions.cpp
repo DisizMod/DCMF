@@ -509,6 +509,7 @@ namespace Conditions
 		registry.AddConditionFactory("AttackState"sv, []() -> ICondition* { return new AttackStateCondition(); });
 		registry.AddConditionFactory("IsMenuOpen"sv, []() -> ICondition* { return new IsMenuOpenCondition(); });
 		registry.AddConditionFactory("HasMorph"sv, []() -> ICondition* { return new HasMorphCondition(); });
+		registry.AddConditionFactory("HasBone"sv, []() -> ICondition* { return new HasBoneCondition(); });
 		registry.AddConditionFactory("IsAnimationPlaying"sv, []() -> ICondition* { return new IsAnimationPlayingCondition(); });
 		registry.AddConditionFactory("IsBodyType"sv, []() -> ICondition* { return new SkinTypeCondition(Scan::SkinPart::kBody); });
 		registry.AddConditionFactory("IsHeadType"sv, []() -> ICondition* { return new SkinTypeCondition(Scan::SkinPart::kHead); });
@@ -567,7 +568,7 @@ namespace Conditions
 				};
 				put(kCategories[0], { "AND", "OR", "XOR", "PRESET", "TARGET", "PLAYER" });
 				put(kCategories[1], { "IsForm", "IsActorBase", "IsRace", "IsClass", "IsCombatStyle", "IsVoiceType", "IsUnique", "IsFemale", "IsChild", "IsGuard", "IsSummoned", "IsGhost", "HasKeyword",
-										"IsInFaction", "FactionRank", "Level", "HasPerk", "HasSpell", "Scale", "Height", "Weight", "HasMorph", "IsBodyType", "IsHeadType", "IsBodyUVLayoutType", "IsHeadUVLayoutType" });
+										"IsInFaction", "FactionRank", "Level", "HasPerk", "HasSpell", "Scale", "Height", "Weight", "HasMorph", "HasBone", "IsBodyType", "IsHeadType", "IsBodyUVLayoutType", "IsHeadUVLayoutType" });
 				put(kCategories[2], { "IsDead", "IsAttacking", "AttackState", "IsBlocking", "IsStaggered", "IsRunning", "IsSneaking", "IsSprinting", "IsSwimming", "IsInAir", "IsInCombat", "IsCombatState",
 										"IsWeaponDrawn", "IsTalking", "IsGreetingPlayer", "IsDoingFavor", "IsInScene", "IsInSpecifiedScene", "IsScenePlaying", "LifeState", "SitSleepState", "IdleTime",
 										"IsMovementDirection", "MovementSpeed", "CurrentMovementSpeed", "CurrentRotationSpeed", "IsPlayerTeammate", "IsTrespassing", "IsCrimeSearching", "IsCombatSearching",
@@ -2478,6 +2479,24 @@ namespace Conditions
 
 
 
+	HasBoneCondition::HasBoneCondition()
+	{
+		textComponent = AddComponent<TextConditionComponent>("Bone name", "The node's own name, as the skeleton or mesh spells it: NPC L Thigh [LThg], L Breast01.");
+		// Every scanned bone, under the category Scanned Data lists it in
+		textComponent->text.SetPickerItems([] {
+			std::vector<UI::UICommon::PickerItem> out;
+			if (const auto catalogue = Scan::Scanner::GetSingleton().GetCatalogue()) {
+				for (const auto& bone : catalogue->bones) {
+					out.push_back({ bone.name, bone.category, static_cast<std::uint64_t>(out.size()) });
+				}
+			}
+			return out;
+		},
+			[](std::string_view a_name) -> std::string {
+				return Apply::Entries::GetSingleton().Find(Apply::Kind::kBone, std::format("{}.mode", a_name)).IsValid() ? std::string(a_name) : std::string{};
+			});
+	}
+
 	SkinTypeCondition::SkinTypeCondition(Scan::SkinPart a_part) :
 		_part(a_part)
 	{
@@ -4161,6 +4180,22 @@ namespace Conditions
 		return a_builder.Truthy(a_builder.Resource(BuiltinResources::Number(key, "Whether the animation plays on the reference.", [animation](RE::TESObjectREFR* a_refr) {
 			return a_refr ? (AnimationGraph::IsPlaying(a_refr, animation) ? 1.f : 0.f) : std::numeric_limits<float>::quiet_NaN();
 		})));
+	}
+
+	Program::Expr HasBoneCondition::Compile(Program::Builder& a_builder) const
+	{
+		const auto key = BuiltinResources::TextSet("dcmf.bones", "The names of the nodes on the actor's loaded 3D.", [](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
+			const auto state = a_refr ? ActorState::Get(a_refr->GetHandle()) : nullptr;
+			if (!state) {
+				return;
+			}
+			state->parts.With([&](const std::shared_ptr<const ActorState::Parts>& a_parts) {
+				if (a_parts) {
+					a_out.assign(a_parts->bones.begin(), a_parts->bones.end());
+				}
+			});
+		});
+		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(textComponent->GetTextValue().c_str()) });
 	}
 
 	Program::Expr SkinTypeCondition::Compile(Program::Builder& a_builder) const

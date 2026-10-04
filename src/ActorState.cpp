@@ -247,6 +247,12 @@ namespace ActorState
 			for (const auto& root : parts->roots) {
 				gather(root);
 			}
+			RE::BSVisit::TraverseScenegraphObjects(a_root, [&](RE::NiAVObject* a_object) {
+				if (a_object->AsNode() && !a_object->name.empty()) {
+					parts->bones.emplace(a_object->name.c_str());
+				}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
 			return parts;
 		}
 
