@@ -4184,7 +4184,7 @@ namespace Conditions
 
 	Program::Expr HasBoneCondition::Compile(Program::Builder& a_builder) const
 	{
-		const auto key = BuiltinResources::TextSet("dcmf.bones", "The names of the nodes on the actor's loaded 3D.", [](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
+		const auto key = BuiltinResources::TextSet("dcmf.bones", "The bones a mesh on the actor's loaded 3D is skinned to, and the nodes above them.", [](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
 			const auto state = a_refr ? ActorState::Get(a_refr->GetHandle()) : nullptr;
 			if (!state) {
 				return;

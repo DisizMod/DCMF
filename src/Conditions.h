@@ -2071,7 +2071,7 @@ namespace Conditions
 		[[nodiscard]] RE::BSString GetArgument() const override { return textComponent->GetArgument(); }
 
 		[[nodiscard]] RE::BSString GetName() const override { return "HasBone"sv.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if a bone of this name is on the actor's loaded 3D: its skeleton's, or one a worn mesh brings. False while the 3D is not loaded."sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if a bone of this name moves something on the actor's loaded 3D: a worn mesh is skinned to it or to a bone below it. False while the 3D is not loaded."sv.data(); }
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
 
 		TextConditionComponent* textComponent;

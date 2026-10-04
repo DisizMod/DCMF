@@ -247,9 +247,18 @@ namespace ActorState
 			for (const auto& root : parts->roots) {
 				gather(root);
 			}
-			RE::BSVisit::TraverseScenegraphObjects(a_root, [&](RE::NiAVObject* a_object) {
-				if (a_object->AsNode() && !a_object->name.empty()) {
-					parts->bones.emplace(a_object->name.c_str());
+			// The bones that move something: each shape's skin bones, and the nodes above them, which move them in turn
+			RE::BSVisit::TraverseScenegraphGeometries(a_root, [&](RE::BSGeometry* a_geometry) {
+				const auto& skin = a_geometry->GetGeometryRuntimeData().skinInstance;
+				if (!skin || !skin->skinData || !skin->bones) {
+					return RE::BSVisit::BSVisitControl::kContinue;
+				}
+				for (std::uint32_t i = 0; i < skin->skinData->GetBoneCount(); ++i) {
+					for (auto* node = skin->bones[i]; node && node != a_root; node = node->parent) {
+						if (node->name.empty() || !parts->bones.emplace(node->name.c_str()).second) {
+							break;
+						}
+					}
 				}
 				return RE::BSVisit::BSVisitControl::kContinue;
 			});
