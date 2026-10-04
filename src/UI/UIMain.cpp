@@ -2137,9 +2137,6 @@ namespace UI
 					if (_editMode != EditMode::kNone || a_subMod->HasFunctionSet(Functions::FunctionSetType::kOnDeactivate)) {
 						drawFunctionSet(Functions::FunctionSetType::kOnDeactivate);
 					}
-					if (!bIsClip && (_editMode != EditMode::kNone || a_subMod->HasFunctionSet(Functions::FunctionSetType::kOnTrigger))) {
-						drawFunctionSet(Functions::FunctionSetType::kOnTrigger);
-					}
 					ImGui::Unindent();
 				}
 			}

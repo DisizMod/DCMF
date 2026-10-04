@@ -464,6 +464,8 @@ namespace ClipPlayer
 
 		std::vector<std::pair<Functions::FunctionSet*, Clip*>> deactivated;
 		std::vector<std::pair<Functions::FunctionSet*, Clip*>> activated;
+		std::vector<std::pair<Functions::FunctionSet*, SubMod*>> modifiersOff;
+		std::vector<std::pair<Functions::FunctionSet*, SubMod*>> modifiersOn;
 
 		a_state.clips.With([&](ActorState::ClipState& a_clips) {
 			a_clips.report.clear();
@@ -629,14 +631,32 @@ namespace ClipPlayer
 				logger::info("clips: '{}' plays variant {} for {:.2f} s", clip->GetName(), *variant, a_clips.running.back().length);
 			}
 
+			// A modifier's own functions, run as it turns on or off for the actor
+			for (const auto& firing : a_clips.pending) {
+				if (!firing.modifier) {
+					continue;
+				}
+				auto* modifier = const_cast<SubMod*>(firing.modifier);
+				if (firing.event == static_cast<std::uint8_t>(Event::kModifierActivated)) {
+					modifiersOn.emplace_back(modifier->GetFunctionSet(Functions::FunctionSetType::kOnActivate), modifier);
+				} else if (firing.event == static_cast<std::uint8_t>(Event::kModifierDeactivated)) {
+					modifiersOff.emplace_back(modifier->GetFunctionSet(Functions::FunctionSetType::kOnDeactivate), modifier);
+				}
+			}
 			a_clips.pending.clear();
 			a_clips.passingLast = { a_passing.begin(), a_passing.end() };
 			std::ranges::stable_sort(a_clips.running, [](const auto& a, const auto& b) { return a.priority < b.priority; });
 		});
 
 		// Outside the lock: a function may reach back into the actor's state
+		for (const auto& [set, modifier] : modifiersOff) {
+			RunSet(set, a_refr, modifier);
+		}
 		for (const auto& [set, clip] : deactivated) {
 			RunSet(set, a_refr, clip);
+		}
+		for (const auto& [set, modifier] : modifiersOn) {
+			RunSet(set, a_refr, modifier);
 		}
 		for (const auto& [set, clip] : activated) {
 			RunSet(set, a_refr, clip);
