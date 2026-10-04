@@ -29,8 +29,10 @@ The records stage already collects the head parts and armour addons.
 
 Category, decided per bone:
 
-1. In a race's skeleton: `Skeleton · <race>`. A bone in several races'
-   skeletons takes the first race that has it.
+1. In a race's skeleton model: `Skeleton · <model>`, the model named by its
+   folder, such as `Skeleton · character assets` or `Skeleton · argonian`. Most
+   races share one model, so a race name would be arbitrary. A bone in several
+   models takes the first model that has it.
 2. Otherwise, brought by one record only: `<kind> · <record name>`, such as
    `Hair · KS Ponytail` or `Armour · Elven Dress`.
 3. Otherwise, brought by several records: `<kind> · <slot>`, such as
