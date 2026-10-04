@@ -965,3 +965,14 @@ Untested: whether an attached collider survives CBPC rebuilding the actor
 step when picked up: an Actor window control attaching a deliberately wrong
 collider to the selected actor. The offline scripts (NIF/OSD reader, fit,
 generator) were scratch, not kept in the repo.
+
+## CommonLibSSE-NG 7.5.1 to 10.1.0, next release
+
+The submodule is pinned at v7.5.1; upstream is at v10.1.0. Nothing between
+them touches the shader property, material or memory manager the AE overlay
+workarounds rest on, so those stay. What the upgrade brings: corrected AE ids
+(GetItemCount, SetWorn, the magic caster, combat behaviour), 1.7.x
+PlayerCharacter accessors and bindings, corrected input event layouts. What it
+costs: the breaking changes (HitData members, CreatePackage, the merged
+BSShaderAccumulator) fixed where DCMF uses them, and a retest on SE and AE.
+OAR's own source pins v6.7.1, so 7.5.1 is not behind what OAR ships with.
