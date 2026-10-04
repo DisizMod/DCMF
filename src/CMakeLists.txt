@@ -138,5 +138,7 @@ if(DCMF_DEPLOY_DIR)
                 "$<TARGET_PDB_FILE:DCMF>" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bodytypes.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bones.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
         COMMENT "Deploying DCMF.dll to ${DCMF_DEPLOY_DIR}")
 endif()

@@ -20,9 +20,6 @@ namespace Actors
 		float maxDistance = 0.f;
 	};
 
-	// Whether a race is one whose actors are tracked: a person's, by ActorTypeNPC and a FaceGen head
-	[[nodiscard]] bool IsPersonRace(const RE::TESRace* a_race);
-
 	// Main thread. Everyone the filter admits, as handles rather than pointers:
 	// the drain reaches them over the frames that follow and has to survive one
 	// of them being unloaded in between.

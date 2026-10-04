@@ -1,0 +1,18 @@
+{
+  "groups": [
+    {
+      "name": "Human",
+      "files": [
+        "meshes/actors/character/character assets/skeleton.nif",
+        "meshes/actors/character/character assets female/skeleton_female.nif"
+      ]
+    },
+    {
+      "name": "Beast",
+      "files": [
+        "meshes/actors/character/character assets/skeletonbeast.nif",
+        "meshes/actors/character/character assets female/skeletonbeast_female.nif"
+      ]
+    }
+  ]
+}

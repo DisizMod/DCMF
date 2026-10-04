@@ -2,173 +2,62 @@
 
 #include "Nif.h"
 
-#include "Actors.h"
+#include <rapidjson/document.h>
 
-#include <bit>
-#include <set>
+#include <fstream>
+
 
 namespace Scan
 {
 	namespace
 	{
-		std::string MeshPath(const char* a_model)
-		{
-			if (!a_model || !*a_model) {
-				return {};
-			}
-			auto path = Files::Normalize(a_model);
-			return path.starts_with("meshes/") ? path : "meshes/" + path;
-		}
+		constexpr auto kPath = "Data/SKSE/Plugins/DCMF.bones.json"sv;
 
-		// The folder a skeleton model sits in, which names it: "character assets", "argonian"
-		std::string FolderOf(std::string_view a_model)
-		{
-			const auto slash = a_model.rfind('/');
-			if (slash == std::string_view::npos) {
-				return std::string(a_model);
-			}
-			const auto folder = a_model.substr(0, slash);
-			const auto start = folder.rfind('/');
-			return std::string(start == std::string_view::npos ? folder : folder.substr(start + 1));
-		}
-
-		std::string_view HeadPartKind(RE::BGSHeadPart::HeadPartType a_type)
-		{
-			using Type = RE::BGSHeadPart::HeadPartType;
-			switch (a_type) {
-			case Type::kFace:
-				return "Face"sv;
-			case Type::kEyes:
-				return "Eyes"sv;
-			case Type::kHair:
-				return "Hair"sv;
-			case Type::kFacialHair:
-				return "Beard"sv;
-			case Type::kScar:
-				return "Scar"sv;
-			case Type::kEyebrows:
-				return "Brows"sv;
-			default:
-				return "Head part"sv;
-			}
-		}
-
-		// An armour addon's first biped slot, by the engine's name where it has one
-		std::string SlotOf(const RE::TESObjectARMA* a_addon)
-		{
-			const auto mask = static_cast<std::uint32_t>(a_addon->GetSlotMask().underlying());
-			if (mask == 0) {
-				return {};
-			}
-			const auto bit = static_cast<std::size_t>(std::countr_zero(mask));
-			constexpr const char* kNames[]{ "Head", "Hair", "Body", "Hands", "Forearms", "Amulet", "Ring", "Feet", "Calves", "Shield", "Tail", "Long hair", "Circlet", "Ears" };
-			return bit < std::size(kNames) ? std::format("{} ({})", kNames[bit], bit + 30) : std::format("Slot {}", bit + 30);
-		}
-
-		std::string LabelOf(const RE::TESForm* a_form, const char* a_name)
-		{
-			if (a_name && *a_name) {
-				return a_name;
-			}
-			const char* editorID = a_form->GetFormEditorID();
-			return editorID && *editorID ? editorID : std::format("{:08X}", a_form->GetFormID());
-		}
-
-		// The meshes that bring bones to the actors DCMF tracks: their races' skeletons, and the head parts and armour addons valid for those races
+		// The meshes DCMF.bones.json lists, each under its group's name
 		class BoneRecords : public ISource
 		{
 		public:
-			std::string_view GetName() const override { return "Bone records"sv; }
+			std::string_view GetName() const override { return "Bone files"sv; }
 			Target GetTarget() const override { return Target::kBones; }
 			Stage GetStage() const override { return Stage::kRecords; }
 
 			void Run(Context& a_context) override
 			{
-				auto* dataHandler = RE::TESDataHandler::GetSingleton();
-				if (!dataHandler) {
-					a_context.Report(""sv, "no data handler");
+				std::ifstream file{ std::string(kPath) };
+				if (!file.is_open()) {
+					a_context.Report(kPath, "not found; no bone is scanned");
 					return;
 				}
-
-				const auto& races = dataHandler->GetFormArray<RE::TESRace>();
-				const auto& parts = dataHandler->GetFormArray<RE::BGSHeadPart>();
-				const auto& addons = dataHandler->GetFormArray<RE::TESObjectARMA>();
-				a_context.progress.total = races.size() + parts.size() + addons.size();
-
-				std::set<std::tuple<std::string, std::string, std::string, std::string>> seen;
-				const auto add = [&](std::string a_model, std::string_view a_kind, std::string a_record, std::string a_slot) {
-					if (a_model.empty() || !seen.emplace(a_model, std::string(a_kind), a_record, a_slot).second) {
-						return;
-					}
-					a_context.out.boneSources.push_back({ std::move(a_model), std::string(a_kind), std::move(a_record), std::move(a_slot) });
-				};
-
-				std::vector<RE::TESRace*> people;
-				for (auto* race : races) {
-					++a_context.progress.done;
-					if (!Actors::IsPersonRace(race)) {
+				const std::string text{ std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{} };
+				rapidjson::Document document;
+				const bool bValid = !document.Parse(text.data()).HasParseError() && document.IsObject();
+				const auto groups = bValid ? document.FindMember("groups") : document.MemberEnd();
+				if (!bValid || groups == document.MemberEnd() || !groups->value.IsArray()) {
+					a_context.Report(kPath, "not valid JSON with a groups list; no bone is scanned");
+					return;
+				}
+				for (const auto& group : groups->value.GetArray()) {
+					const auto name = group.IsObject() ? group.FindMember("name") : group.MemberEnd();
+					const auto files = group.IsObject() ? group.FindMember("files") : group.MemberEnd();
+					if (!group.IsObject() || name == group.MemberEnd() || !name->value.IsString() || files == group.MemberEnd() || !files->value.IsArray()) {
+						a_context.Report(kPath, "a group without a name and a files list is not read");
 						continue;
 					}
-					people.push_back(race);
-					for (int sex = 0; sex < 2; ++sex) {
-						const auto model = MeshPath(race->skeletonModels[sex].GetModel());
-						add(model, "Skeleton"sv, FolderOf(model), {});
-					}
-				}
-
-				for (auto* part : parts) {
-					++a_context.progress.done;
-					if (part && part->validRaces && std::ranges::any_of(people, [&](const RE::TESRace* a_race) { return part->validRaces->HasForm(a_race); })) {
-						add(MeshPath(part->GetModel()), HeadPartKind(part->type.get()), LabelOf(part, nullptr), {});
-					}
-				}
-
-				// An addon is named by the first armour that uses it
-				std::unordered_map<const RE::TESObjectARMA*, std::string> armourOf;
-				for (auto* armour : dataHandler->GetFormArray<RE::TESObjectARMO>()) {
-					if (!armour) {
-						continue;
-					}
-					const auto label = LabelOf(armour, armour->GetFullName());
-					for (const auto* addon : armour->armorAddons) {
-						if (addon) {
-							armourOf.emplace(addon, label);
+					for (const auto& path : files->value.GetArray()) {
+						if (path.IsString()) {
+							a_context.out.boneSources.push_back({ Files::Normalize(path.GetString()), {}, name->value.GetString(), {} });
 						}
 					}
 				}
-				for (auto* addon : addons) {
-					++a_context.progress.done;
-					if (!addon || std::ranges::none_of(people, [&](RE::TESRace* a_race) { return addon->IsValidRace(a_race); })) {
-						continue;
-					}
-					const auto it = armourOf.find(addon);
-					const auto record = it != armourOf.end() ? it->second : LabelOf(addon, nullptr);
-					const auto slot = SlotOf(addon);
-					for (int sex = 0; sex < 2; ++sex) {
-						add(MeshPath(addon->bipedModels[sex].GetModel()), "Armour"sv, record, slot);
-						add(MeshPath(addon->bipedModel1stPersons[sex].GetModel()), "Armour"sv, record, slot);
-					}
-				}
+				a_context.progress.total = static_cast<uint32_t>(a_context.out.boneSources.size());
+				a_context.progress.done = a_context.progress.total.load();
 			}
 		};
 
-		// A bone's category: its skeleton's; else the one record that brings it; else the kind and slot they share; else Shared
+		// A bone's category: the first group that has it
 		std::string CategoryOf(const std::vector<BoneSource>& a_sources, const std::vector<std::size_t>& a_from)
 		{
-			for (const auto i : a_from) {
-				if (a_sources[i].kind == "Skeleton"sv) {
-					return std::format("Skeleton · {}", a_sources[i].record);
-				}
-			}
-			const auto& first = a_sources[a_from.front()];
-			const auto all = [&](auto a_same) { return std::ranges::all_of(a_from, [&](std::size_t i) { return a_same(a_sources[i]); }); };
-			if (all([&](const BoneSource& a_source) { return a_source.kind == first.kind && a_source.record == first.record; })) {
-				return std::format("{} · {}", first.kind, first.record);
-			}
-			if (all([&](const BoneSource& a_source) { return a_source.kind == first.kind && a_source.slot == first.slot; })) {
-				return first.slot.empty() ? first.kind : std::format("{} · {}", first.kind, first.slot);
-			}
-			return "Shared";
+			return a_sources[a_from.front()].record;
 		}
 
 		// The node names in each of those meshes, loose or archived, the root left out: it is the file's own node, not a bone
@@ -195,7 +84,7 @@ namespace Scan
 						const auto bytes = Files::Read(source.model);
 						std::string error;
 						if (bytes.empty()) {
-							a_context.Report(source.model, "not found, loose or in an archive");
+							logger::info("scan: {} is not in the load order; its bones are skipped", source.model);
 						} else if (!Nif::ReadNodeNames(bytes, names, error)) {
 							a_context.Report(source.model, error);
 							names.clear();

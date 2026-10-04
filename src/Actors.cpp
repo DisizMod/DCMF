@@ -21,17 +21,13 @@ namespace Actors
 		// The keyword is read off the race, not the actor base: that is where it
 		// is authored, and whether TESNPC's own HasKeyword consults the race is
 		// the game's business, not something to lean on.
-		[[nodiscard]] bool IsPerson(const RE::TESRace* a_race, const RE::BGSKeyword* a_actorTypeNPC)
+		[[nodiscard]] bool IsPerson(RE::Actor* a_actor, const RE::BGSKeyword* a_actorTypeNPC)
 		{
-			return a_race && a_actorTypeNPC &&
-			       a_race->data.flags.all(RE::RACE_DATA::Flag::kFaceGenHead) &&
-			       a_race->HasKeyword(a_actorTypeNPC);
+			const auto* race = a_actor->GetRace();
+			return race && a_actorTypeNPC &&
+			       race->data.flags.all(RE::RACE_DATA::Flag::kFaceGenHead) &&
+			       race->HasKeyword(a_actorTypeNPC);
 		}
-	}
-
-	bool IsPersonRace(const RE::TESRace* a_race)
-	{
-		return IsPerson(a_race, RE::TESForm::LookupByID<RE::BGSKeyword>(kActorTypeNPC));
 	}
 
 	void Capture(const Filter& a_filter, std::vector<RE::ActorHandle>& a_outHandles)
@@ -71,7 +67,7 @@ namespace Actors
 				continue;
 			}
 
-			if (!IsPerson(actor->GetRace(), actorTypeNPC)) {
+			if (!IsPerson(actor.get(), actorTypeNPC)) {
 				continue;
 			}
 
