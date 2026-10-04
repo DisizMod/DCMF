@@ -339,9 +339,17 @@ namespace Functions
 		}
 		auto* args = RE::MakeFunctionArguments(std::move(topic), static_cast<RE::Actor*>(nullptr), static_cast<bool>(inHeadComponent->bValue));
 		RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback;
-		const auto topicID = topicComponent->GetTESFormValue()->GetFormID();
+		// The topic's lines whose conditions hold for the speaker: with none, Say has nothing to say
+		const auto* said = topicComponent->GetTESFormValue()->As<RE::TESTopic>();
+		std::uint32_t passing = 0;
+		for (std::uint32_t i = 0; i < said->numTopicInfos; ++i) {
+			if (auto* info = said->topicInfos[i]; info && info->objConditions.IsTrue(a_refr, a_refr)) {
+				++passing;
+			}
+		}
 		const bool bSent = vm->DispatchMethodCall1(object, "Say"sv, args, callback);
-		logger::info("PlayDialogue: Say topic {:08X} on {:08X} {}", topicID, a_refr->GetFormID(), bSent ? "sent; the game says a line only if one of the topic's lines has conditions that pass for this speaker" : "not sent: the VM refused the call");
+		const char* editorID = said->GetFormEditorID();
+		logger::info("PlayDialogue: Say topic {:08X} '{}' on {:08X} {}: {} of its {} line(s) pass their conditions for the speaker", said->GetFormID(), editorID ? editorID : "", a_refr->GetFormID(), bSent ? "sent" : "not sent, the VM refused the call", passing, said->numTopicInfos);
 		return bSent;
 	}
 }
