@@ -179,6 +179,7 @@ namespace ActorState
 	{
 		std::optional<float> nextFire;
 		std::optional<float> roll;
+		std::optional<float> endedAt;  // when the count began: the clip's end, or its conditions coming to hold
 	};
 
 	struct ClipState
