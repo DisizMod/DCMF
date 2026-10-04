@@ -3425,6 +3425,32 @@ namespace UI
 				}
 			}
 
+			// Bones, under their categories
+			std::vector<std::pair<std::string_view, std::vector<const Scan::Bone*>>> boneCategories;
+			std::size_t boneCount = 0;
+			for (const auto& bone : catalogue->bones) {
+				if (!matches(bone.category) && !matches(bone.name)) {
+					continue;
+				}
+				if (boneCategories.empty() || boneCategories.back().first != bone.category) {
+					boneCategories.push_back({ bone.category, {} });
+				}
+				boneCategories.back().second.push_back(&bone);
+				++boneCount;
+			}
+			if (ImGui::CollapsingHeader(std::format("{} ({})###Bones", Scan::TargetName(Scan::Target::kBones), boneCount).data())) {
+				for (const auto& [category, bones] : boneCategories) {
+					ImGui::PushID(category.data(), category.data() + category.size());
+					if (ImGui::TreeNode(std::format("{}  ({} bones)", category, bones.size()).data())) {
+						for (const auto* bone : bones) {
+							ImGui::TextUnformatted(bone->name.data());
+						}
+						ImGui::TreePop();
+					}
+					ImGui::PopID();
+				}
+			}
+
 			// BodySlide presets
 			std::vector<const Scan::BodyPreset*> presets;
 			for (const auto& preset : catalogue->bodyPresets) {
