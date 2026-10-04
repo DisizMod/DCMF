@@ -2,6 +2,8 @@
 
 #include "Nif.h"
 
+#include "Actors.h"
+
 #include <bit>
 #include <set>
 
@@ -72,7 +74,7 @@ namespace Scan
 			return editorID && *editorID ? editorID : std::format("{:08X}", a_form->GetFormID());
 		}
 
-		// The meshes that bring bones: every race's skeleton, every head part's model, every armour addon's models
+		// The meshes that bring bones to the actors DCMF tracks: their races' skeletons, and the head parts and armour addons valid for those races
 		class BoneRecords : public ISource
 		{
 		public:
@@ -101,11 +103,13 @@ namespace Scan
 					a_context.out.boneSources.push_back({ std::move(a_model), std::string(a_kind), std::move(a_record), std::move(a_slot) });
 				};
 
+				std::vector<RE::TESRace*> people;
 				for (auto* race : races) {
 					++a_context.progress.done;
-					if (!race) {
+					if (!Actors::IsPersonRace(race)) {
 						continue;
 					}
+					people.push_back(race);
 					for (int sex = 0; sex < 2; ++sex) {
 						const auto model = MeshPath(race->skeletonModels[sex].GetModel());
 						add(model, "Skeleton"sv, FolderOf(model), {});
@@ -114,7 +118,7 @@ namespace Scan
 
 				for (auto* part : parts) {
 					++a_context.progress.done;
-					if (part) {
+					if (part && part->validRaces && std::ranges::any_of(people, [&](const RE::TESRace* a_race) { return part->validRaces->HasForm(a_race); })) {
 						add(MeshPath(part->GetModel()), HeadPartKind(part->type.get()), LabelOf(part, nullptr), {});
 					}
 				}
@@ -134,7 +138,7 @@ namespace Scan
 				}
 				for (auto* addon : addons) {
 					++a_context.progress.done;
-					if (!addon) {
+					if (!addon || std::ranges::none_of(people, [&](RE::TESRace* a_race) { return addon->IsValidRace(a_race); })) {
 						continue;
 					}
 					const auto it = armourOf.find(addon);
