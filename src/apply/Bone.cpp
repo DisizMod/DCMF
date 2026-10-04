@@ -29,6 +29,11 @@ namespace Apply
 			return true;
 		}
 
+		bool SamePoint(const RE::NiPoint3& a_a, const RE::NiPoint3& a_b)
+		{
+			return a_a.x == a_b.x && a_a.y == a_b.y && a_a.z == a_b.z;
+		}
+
 		// A bone's frame as the animation and our earlier writes posed it this pass: the root's world times every
 		// local down the chain. The bones' world transforms are stale here, this pass is what computes them
 		bool AnimatedFrame(RE::NiAVObject* a_root, RE::NiAVObject* a_bone, RE::NiTransform& a_out)
@@ -203,6 +208,13 @@ namespace Apply
 						a_bone.node->local.scale = a_bone.animated.scale;
 					}
 				}
+				for (auto& child : a_bone.children) {
+					if (child.node && SamePoint(child.node->local.translate, child.written)) {
+						child.node->local.translate = child.animated;
+					}
+				}
+				a_bone.children.clear();
+				a_bone.bRested = false;
 				a_bone.bWritten = false;
 			};
 			for (auto& [slot, bone] : a_data.bones) {
@@ -225,6 +237,15 @@ namespace Apply
 
 			constexpr auto perBone = static_cast<std::uint32_t>(Property::kTotal);
 
+			// A bone on Released is not ours: nothing below writes it, the take-back above having put it back
+			std::vector<std::uint32_t> released;
+			for (const auto& sample : samples) {
+				if (sample.index % perBone == static_cast<std::uint32_t>(Property::kMode) && static_cast<Mode>(static_cast<std::uint32_t>(sample.value)) == Mode::kReleased) {
+					released.push_back(sample.index / perBone);
+				}
+			}
+			const auto isReleased = [&](std::uint32_t a_slot) { return std::ranges::find(released, a_slot) != released.end(); };
+
 			// The aims, the spine's before the head's, since the head closes what the spine left. Every frame is
 			// walked from the root, the world transforms being what this pass computes, so a bone sees the turns
 			// before it. The write goes through the same record as a number's, so the take-back finds it
@@ -235,15 +256,18 @@ namespace Apply
 				BoneWrite* record = nullptr;
 				if (const auto id = entries.Find(Kind::kBone, std::format("{}.x", a_name)); id.IsValid()) {
 					const auto slot = id.GetIndex() / perBone;
+					if (isReleased(slot)) {
+						return;
+					}
 					auto held = std::ranges::find(a_data.bones, slot, [](const auto& a_entry) { return a_entry.first; });
 					if (held == a_data.bones.end()) {
-						held = a_data.bones.insert(a_data.bones.end(), { slot, BoneWrite{ .node = RE::NiPointer(a_node) } });
+						held = a_data.bones.insert(a_data.bones.end(), { slot, BoneWrite{ .node = RE::NiPointer(a_node), .first = a_node->local.rotate } });
 					}
 					record = &held->second;
 				} else {
 					auto held = std::ranges::find(a_data.named, std::string_view(a_name), [](const auto& a_entry) { return std::string_view(a_entry.first); });
 					if (held == a_data.named.end()) {
-						held = a_data.named.insert(a_data.named.end(), { std::string(a_name), BoneWrite{ .node = RE::NiPointer(a_node) } });
+						held = a_data.named.insert(a_data.named.end(), { std::string(a_name), BoneWrite{ .node = RE::NiPointer(a_node), .first = a_node->local.rotate } });
 					}
 					record = &held->second;
 				}
@@ -258,6 +282,7 @@ namespace Apply
 					const auto turn = write.base.Transpose() * a_node->local.rotate;
 					a_node->local.rotate = Partway(a_node->local.rotate, a_by * turn, a_weight);
 					write.base = Partway(write.base, a_by, a_weight);
+					write.bRested = true;
 				} else {
 					a_node->local.rotate = a_node->local.rotate * a_by;
 				}
@@ -358,14 +383,19 @@ namespace Apply
 				}
 			}
 
-			// Per bone: scale and three angles, gathered from the sorted samples, on top of the aims: an angle the author
-			// sets is an offset on whatever the tracking did
+			// Per bone: its mode, scale, three angles and length, gathered from the sorted samples, on top of the aims:
+			// an angle the author sets is an offset on whatever the tracking or the rest did
 			for (std::size_t i = 0; i < samples.size();) {
 				const auto slot = samples[i].index / perBone;
+				auto mode = Mode::kOffset;
 				float scale = 1.f;
 				float angles[3]{};
+				float length = 0.f;
 				for (; i < samples.size() && samples[i].index / perBone == slot; ++i) {
 					switch (static_cast<Property>(samples[i].index % perBone)) {
+					case Property::kMode:
+						mode = static_cast<Mode>(static_cast<std::uint32_t>(samples[i].value));
+						break;
 					case Property::kScale:
 						scale = samples[i].value;
 						break;
@@ -378,19 +408,28 @@ namespace Apply
 					case Property::kZ:
 						angles[2] = samples[i].value;
 						break;
+					case Property::kLength:
+						length = samples[i].value;
+						break;
 					default:
 						break;
 					}
 				}
+				if (mode == Mode::kReleased) {
+					continue;
+				}
 				auto bone = std::ranges::find(a_data.bones, slot, [](const auto& a_entry) { return a_entry.first; });
 				if (bone == a_data.bones.end()) {
-					// The node is the entry's group: the bone name the skeleton scan found
+					// The node is the entry's name without its property: the bone name the scan found
 					BoneWrite write;
-					const auto name = entries.Get({ Kind::kBone, slot * perBone }).group;
+					const auto entryName = entries.Get({ Kind::kBone, slot * perBone }).name;
+					const auto name = entryName.substr(0, entryName.rfind('.'));
 					if (!name.empty()) {
 						write.node = RE::NiPointer(root->GetObjectByName(RE::BSFixedString(name)));
 					}
-					if (!write.node) {
+					if (write.node) {
+						write.first = write.node->local.rotate;
+					} else {
 						logger::info("bone: '{}' is not on this actor's skeleton", name);
 					}
 					bone = a_data.bones.insert(a_data.bones.end(), { slot, std::move(write) });
@@ -403,14 +442,34 @@ namespace Apply
 				if (!write.bWritten) {
 					write.animated = write.node->local;
 				}
+				// Fixed with no skeleton rest put on above: the rotation it had when first seen
+				if (mode == Mode::kFixed && !write.bRested) {
+					write.node->local.rotate = write.first;
+				}
 				RE::NiMatrix3 turn;
 				turn.SetEulerAnglesXYZ(angles[0], angles[1], angles[2]);
 				write.node->local.rotate = write.node->local.rotate * turn;
 				write.node->local.scale = write.animated.scale * scale;
+				// Length: each child moved away from the bone along the line to it, its offset as found kept for the take-back
+				if (length != 0.f) {
+					if (auto* node = write.node->AsNode()) {
+						for (auto& child : node->GetChildren()) {
+							if (!child) {
+								continue;
+							}
+							const auto offset = child->local.translate;
+							const float distance = offset.Length();
+							if (distance < 1e-3f) {
+								continue;
+							}
+							child->local.translate = offset + offset * (length / distance);
+							write.children.push_back({ RE::NiPointer(child.get()), offset, child->local.translate });
+						}
+					}
+				}
 				write.written = write.node->local;
 				write.bWritten = true;
 			}
-
 		});
 	}
 }

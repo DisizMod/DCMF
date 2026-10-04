@@ -74,6 +74,7 @@ add_commonlibsse_plugin(DCMF
     scan/CategorySources.cpp
     scan/PresetSources.cpp
     scan/SkinModelSources.cpp
+    scan/BoneSources.cpp
     scan/Nif.cpp
     scan/Tri.cpp
     scan/Xml.cpp

@@ -86,6 +86,7 @@ namespace Apply
 		ChannelId Add(Kind a_kind, Entry a_entry);
 		void AddFixed();
 		void Populate(const Scan::Catalogue& a_catalogue);
+		void AddBone(std::string_view a_bone, std::string_view a_group, bool a_bPose);
 
 		mutable std::shared_mutex _lock;
 		std::array<std::vector<Entry>, static_cast<std::size_t>(Kind::kTotal)> _entries;

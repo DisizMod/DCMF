@@ -22,6 +22,8 @@ namespace Scan
 			return "BodySlide presets"sv;
 		case Target::kSkinModels:
 			return "Skin models"sv;
+		case Target::kBones:
+			return "Bones"sv;
 		default:
 			return "?"sv;
 		}
@@ -291,6 +293,8 @@ namespace Scan
 			Append(a_to.builtTris, a_from.builtTris);
 			Append(a_to.problems, a_from.problems);
 			Append(a_to.timings, a_from.timings);
+			Append(a_to.boneSources, a_from.boneSources);
+			Append(a_to.bones, a_from.bones);
 
 			for (const auto& set : a_from.faceMorphs) {
 				auto it = std::ranges::find_if(a_to.faceMorphs, [&](const FaceMorphSet& s) { return s.tri == set.tri; });
@@ -522,6 +526,7 @@ namespace Scan
 		AddCategorySources(*this);
 		AddPresetSources(*this);
 		AddSkinModelSources(*this);
+		AddBoneSources(*this);
 	}
 
 	std::vector<Scanner::SourceProgress> Scanner::GetProgress() const
@@ -626,8 +631,8 @@ namespace Scan
 			catalogue->totalMilliseconds += timing.milliseconds;
 		}
 
-		logger::info("scan: {} head parts, {} face morph sets, {} body morph sets, {} categories, {} problems in {:.0f}ms",
-			catalogue->headParts.size(), catalogue->faceMorphs.size(), catalogue->bodyMorphs.size(), catalogue->categories.size(), catalogue->problems.size(), catalogue->totalMilliseconds);
+		logger::info("scan: {} head parts, {} face morph sets, {} body morph sets, {} categories, {} bones, {} problems in {:.0f}ms",
+			catalogue->headParts.size(), catalogue->faceMorphs.size(), catalogue->bodyMorphs.size(), catalogue->categories.size(), catalogue->bones.size(), catalogue->problems.size(), catalogue->totalMilliseconds);
 		for (const auto& timing : catalogue->timings) {
 			logger::info("  {}: {:.0f}ms, {} files", timing.source, timing.milliseconds, timing.files);
 		}

@@ -74,25 +74,9 @@ namespace Apply
 			Add(Kind::kMfg, std::move(entry));
 		}
 
-		// Bones: the spine and the head, four entries each, in the order Bone::Property counts; the group is the node.
-		// Out of the pickers: the pose channels below drive them
+		// The bones the spine and head poses turn, before the scan: their scale alone in the pickers
 		for (const auto* bone : { "NPC Spine1 [Spn1]", "NPC Spine2 [Spn2]", "NPC Neck [Neck]", "NPC Head [Head]" }) {
-			for (const auto* property : { "scale", "x", "y", "z" }) {
-				Entry entry;
-				entry.name = std::format("{}.{}", bone, property);
-				entry.display = property;
-				entry.group = bone;
-				entry.bHidden = true;
-				if (property == "scale"sv) {
-					entry.low = 0.25f;
-					entry.high = 4.f;
-					entry.neutral = 1.f;
-				} else {
-					entry.low = -1.5f;
-					entry.high = 1.5f;
-				}
-				Add(Kind::kBone, std::move(entry));
-			}
+			AddBone(bone, "Skeleton · character assets", true);
 		}
 
 		// Grouped by what they belong to: a head part with its own material, the skin's material with the skin set
@@ -220,9 +204,9 @@ namespace Apply
 				entry.modes = std::move(a_modes);
 				Add(kind, std::move(entry));
 			};
-			std::vector<std::string> modes = segment == "gaze"sv ? std::vector<std::string>{ "Engine", "Fixed", "Track", "Offset" } : std::vector<std::string>{ "Offset", "Fixed", "Track" };
+			std::vector<std::string> modes = segment == "gaze"sv ? std::vector<std::string>{ "Engine", "Fixed", "Track", "Offset" } : std::vector<std::string>{ "Offset", "Fixed", "Track", "Released" };
 			const std::string part = segment == "gaze"sv ? "eyes" : std::string(segment);
-			add("mode", "Mode", segment == "gaze"sv ? "Engine leaves the eyes to the game, Fixed holds the angles, Track looks at the target, Offset adds the angles to where the game looks." : "Offset adds the angles to the animation, Fixed holds them, Track turns toward the target.",
+			add("mode", "Mode", segment == "gaze"sv ? "Engine leaves the eyes to the game, Fixed holds the angles, Track looks at the target, Offset adds the angles to where the game looks." : "Offset adds the angles to the animation, Fixed holds them, Track turns toward the target, Released leaves the bones to the animation and other mods.",
 				ValueType::kMode, 0.f, 1.f, 0.f, std::move(modes));
 			add("target", "Target", "What Track looks at: the engine's own target, the camera, the player or a chosen reference.", ValueType::kMode, 0.f, 1.f, 0.f, { "Engine", "Camera", "Player", "Form" });
 			add("form", "Form", "The reference Track looks at when the target is Form.", ValueType::kForm);
@@ -239,8 +223,41 @@ namespace Apply
 		}
 	}
 
+	// A bone's six entries, in the order Bone::Property counts; a pose bone shows its scale alone
+	void Entries::AddBone(std::string_view a_bone, std::string_view a_group, bool a_bPose)
+	{
+		const auto add = [&](std::string_view a_property, std::string a_description, ValueType a_type, float a_low, float a_high, float a_neutral, std::vector<std::string> a_modes = {}) {
+			Entry entry;
+			entry.name = std::format("{}.{}", a_bone, a_property);
+			entry.display = std::format("{} {}", a_bone, a_property);
+			entry.group = a_group;
+			entry.description = std::move(a_description);
+			entry.type = a_type;
+			entry.low = a_low;
+			entry.high = a_high;
+			entry.neutral = a_neutral;
+			entry.modes = std::move(a_modes);
+			entry.bHidden = a_bPose && a_property != "scale"sv;
+			Add(Kind::kBone, std::move(entry));
+		};
+		// The modes in the order Bone::Mode counts
+		add("mode", "Offset adds the angles to the animation, Fixed puts them on the bone's rest, Released leaves the bone to the animation and other mods.", ValueType::kMode, 0.f, 1.f, -1.f, { "Offset", "Fixed", "Released" });
+		add("scale", "Scales the bone and everything below it.", ValueType::kNumber, 0.25f, 4.f, 1.f);
+		add("x", "Turns the bone about its x axis, in radians.", ValueType::kNumber, -1.5f, 1.5f, 0.f);
+		add("y", "Turns the bone about its y axis, in radians.", ValueType::kNumber, -1.5f, 1.5f, 0.f);
+		add("z", "Turns the bone about its z axis, in radians.", ValueType::kNumber, -1.5f, 1.5f, 0.f);
+		add("length", "Moves the bone's children away from it, in game units, as XPMSE's length sliders do.", ValueType::kNumber, -10.f, 10.f, 0.f);
+	}
+
 	void Entries::Populate(const Scan::Catalogue& a_catalogue)
 	{
+		// Bones: every one the load order's meshes bring, under what brings it
+		for (const auto& bone : a_catalogue.bones) {
+			if (!Find(Kind::kBone, std::format("{}.mode", bone.name)).IsValid()) {
+				AddBone(bone.name, bone.category, false);
+			}
+		}
+
 		// Body morphs: every name any BodySlide project, output TRI or RaceMenu script knows
 		for (const auto& morph : a_catalogue.bodyMorphNames) {
 			if (Find(Kind::kBodyMorph, morph.name).IsValid()) {

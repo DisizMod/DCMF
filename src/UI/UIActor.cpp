@@ -716,9 +716,9 @@ namespace UI
 			ImGui::PopID();
 		};
 
-		// The channels in eight families, each tinted in the condition presets' teal so it reads apart from the window's
+		// The channels in nine families, each tinted in the condition presets' teal so it reads apart from the window's
 		// own headers; in each, the modifiers' channel picker's categories, in its order, the rows in its order within
-		constexpr std::array families{ "Engine MFG", "Face Morph", "Body Morph", "Actor & Body Preset", "Head Part", "Skin", "Overlay", "Pose" };
+		constexpr std::array families{ "Engine MFG", "Face Morph", "Body Morph", "Actor & Body Preset", "Head Part", "Skin", "Overlay", "Pose", "Bone" };
 		const auto familyOf = [](Apply::ChannelId a_id, const Apply::Entry& a_entry) -> int {
 			switch (a_id.GetKind()) {
 			case Apply::Kind::kMfg:
@@ -741,6 +741,8 @@ namespace UI
 			case Apply::Kind::kHead:
 			case Apply::Kind::kGaze:
 				return 7;
+			case Apply::Kind::kBone:
+				return 8;
 			default:
 				return -1;
 			}

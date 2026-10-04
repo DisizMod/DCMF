@@ -1,6 +1,7 @@
 #include "Pose.h"
 
 #include "Settings.h"
+#include "apply/Bone.h"
 #include "apply/Entries.h"
 
 #include <numbers>
@@ -181,6 +182,21 @@ namespace Pose
 			}
 		}
 
+		// A value put in place of whatever the sample holds, not added: a mode
+		void SetNumber(ActorState::Sampled& a_out, Apply::Kind a_kind, std::string_view a_name, float a_value)
+		{
+			const auto id = Apply::Entries::GetSingleton().Require(a_kind, a_name);
+			if (!id.IsValid()) {
+				return;
+			}
+			auto& numbers = a_out.numbers[static_cast<std::size_t>(a_kind)];
+			if (auto it = std::ranges::find(numbers, id.GetIndex(), &Apply::NumberSample::index); it != numbers.end()) {
+				it->value = a_value;
+			} else {
+				numbers.push_back({ id.GetIndex(), a_value });
+			}
+		}
+
 		// The angles shared down a chain: each bone its share of the yaw, pitch and roll. The cones are the look-at's;
 		// an angle the author sets is theirs, to the slider's end. Yaw is about the bone's z, pitch about its x, roll
 		// about its y, radians, the way the bone applier takes them
@@ -216,7 +232,7 @@ namespace Pose
 		if (a_segment == kGaze) {
 			return { std::string(ModeName(Apply::PoseSample::Mode::kEngine)), std::string(ModeName(Apply::PoseSample::Mode::kFixed)), std::string(ModeName(Apply::PoseSample::Mode::kTrack)), std::string(ModeName(Apply::PoseSample::Mode::kOffset)) };
 		}
-		return { std::string(ModeName(Apply::PoseSample::Mode::kOffset)), std::string(ModeName(Apply::PoseSample::Mode::kFixed)), std::string(ModeName(Apply::PoseSample::Mode::kTrack)) };
+		return { std::string(ModeName(Apply::PoseSample::Mode::kOffset)), std::string(ModeName(Apply::PoseSample::Mode::kFixed)), std::string(ModeName(Apply::PoseSample::Mode::kTrack)), std::string(ModeName(Apply::PoseSample::Mode::kReleased)) };
 	}
 
 	std::string_view ModeName(Apply::PoseSample::Mode a_mode)
@@ -228,6 +244,8 @@ namespace Pose
 			return "Track"sv;
 		case Apply::PoseSample::Mode::kEngine:
 			return "Engine"sv;
+		case Apply::PoseSample::Mode::kReleased:
+			return "Released"sv;
 		case Apply::PoseSample::Mode::kOffset:
 		default:
 			return "Offset"sv;
@@ -236,7 +254,7 @@ namespace Pose
 
 	Apply::PoseSample::Mode ModeOf(std::string_view a_name)
 	{
-		for (const auto mode : { Apply::PoseSample::Mode::kOffset, Apply::PoseSample::Mode::kFixed, Apply::PoseSample::Mode::kTrack, Apply::PoseSample::Mode::kEngine }) {
+		for (const auto mode : { Apply::PoseSample::Mode::kOffset, Apply::PoseSample::Mode::kFixed, Apply::PoseSample::Mode::kTrack, Apply::PoseSample::Mode::kEngine, Apply::PoseSample::Mode::kReleased }) {
 			if (ModeName(mode) == a_name) {
 				return mode;
 			}
@@ -297,6 +315,31 @@ namespace Pose
 			if (const auto rest = RestFor(a_actor)) {
 				Apply::AimSample aim{ .segment = 3, .goal = {}, .weight = 1.f, .bRest = true, .armsDown = kAPoseArmsDown };
 				aim.rests.assign(rest->bones.begin(), rest->bones.end());
+				a_out.aims.push_back(std::move(aim));
+			}
+		}
+
+		// A bone on Fixed sits on the skeleton's rest, its own angles on top; one the skeleton has no rest for is left to
+		// the bone pass, which puts it on what it had when first seen
+		{
+			constexpr auto perBone = static_cast<std::uint32_t>(Apply::Bone::Property::kTotal);
+			const auto& bones = a_out.numbers[static_cast<std::size_t>(Apply::Kind::kBone)];
+			std::optional<Rest> rest;
+			Apply::AimSample aim{ .segment = 4, .goal = {}, .weight = 1.f, .bRest = true };
+			for (const auto& sample : bones) {
+				if (sample.index % perBone != static_cast<std::uint32_t>(Apply::Bone::Property::kMode) || static_cast<Apply::Bone::Mode>(static_cast<std::uint32_t>(sample.value)) != Apply::Bone::Mode::kFixed) {
+					continue;
+				}
+				if (!rest && !(rest = RestFor(a_actor))) {
+					break;
+				}
+				const auto entryName = entries.Get({ Apply::Kind::kBone, sample.index }).name;
+				const auto name = entryName.substr(0, entryName.rfind('.'));
+				if (const auto it = rest->bones.find(name); it != rest->bones.end()) {
+					aim.rests.emplace_back(name, it->second);
+				}
+			}
+			if (!aim.rests.empty()) {
 				a_out.aims.push_back(std::move(aim));
 			}
 		}
@@ -392,6 +435,18 @@ namespace Pose
 				const float engine = modeWeight(segment, Apply::PoseSample::Mode::kEngine);
 				if (engine >= 1.f) {
 					continue;  // the engine's own eye tracking runs; nothing to add
+				}
+				// Released: the segment's bones are handed back at once, their own channels with them
+				if (segment < 2 && a_memory.mode[segment] == Apply::PoseSample::Mode::kReleased) {
+					constexpr auto kReleased = static_cast<float>(Apply::Bone::Mode::kReleased);
+					if (segment == 0) {
+						for (const auto& bone : SpineChain()) {
+							SetNumber(a_out, Apply::Kind::kBone, std::format("{}.mode", bone.name), kReleased);
+						}
+					} else {
+						SetNumber(a_out, Apply::Kind::kBone, std::format("{}.mode", HeadChain()[0].name), kReleased);
+					}
+					continue;
 				}
 				bSeen[segment] = true;
 				const float track = modeWeight(segment, Apply::PoseSample::Mode::kTrack);

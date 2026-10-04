@@ -58,7 +58,8 @@ namespace Apply
 			kOffset,  // the angles on the animation's pose
 			kFixed,   // the rest pose, the angles on top
 			kTrack,   // aimed at the target, the angles on top
-			kEngine   // the gaze only: the engine's own eye tracking
+			kEngine,  // the gaze only: the engine's own eye tracking
+			kReleased  // the spine and head only: nothing written, the bones handed back
 		};
 
 		enum class Target : std::uint8_t
@@ -137,6 +138,14 @@ namespace Apply
 		bool bWritten = false;
 	};
 
+	// A child a length moved: its offset from the bone as found, and as left
+	struct ChildWrite
+	{
+		RE::NiPointer<RE::NiAVObject> node;
+		RE::NiPoint3 animated;
+		RE::NiPoint3 written;
+	};
+
 	// One bone turned or scaled after animation. The pass runs more than once a frame on a root, and the
 	// engine only rewrites the pose between frames, so what was written is kept to be taken back off first.
 	struct BoneWrite
@@ -146,6 +155,9 @@ namespace Apply
 		RE::NiTransform written;   // what we left there
 		RE::NiMatrix3 base;        // this pass: what the bone sits on, the animation's or a rest put in its place
 		bool bWritten = false;
+		RE::NiMatrix3 first;               // the rotation it had when first seen, before any write of ours: a Fixed bone's rest when the skeleton has none
+		bool bRested = false;              // this pass: a skeleton rest replaced its rotation
+		std::vector<ChildWrite> children;  // what a length moved, taken back with the rest
 	};
 
 	struct BoneData

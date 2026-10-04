@@ -14,14 +14,24 @@ namespace Apply
 		// The vtable hook the pass runs from; false when nothing was patched
 		static bool Install();
 
-		// Four entries per bone, in this order
+		// Six entries per bone, in this order
 		enum class Property : std::uint32_t
 		{
+			kMode,
 			kScale,
 			kX,
 			kY,
 			kZ,
+			kLength,
 			kTotal
+		};
+
+		// A bone's mode entry, by its place in the entry's list
+		enum class Mode : std::uint32_t
+		{
+			kOffset,
+			kFixed,
+			kReleased
 		};
 	};
 }

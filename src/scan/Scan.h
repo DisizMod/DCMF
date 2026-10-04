@@ -19,6 +19,7 @@ namespace Scan
 		kBodySlideCategories,
 		kBodyPresets,
 		kSkinModels,
+		kBones,
 
 		kTotal
 	};
@@ -164,6 +165,22 @@ namespace Scan
 		std::vector<Provenance> foundBy;
 	};
 
+	// A mesh some record brings bones in with: a race's skeleton, a head part's model, an armour addon's
+	struct BoneSource
+	{
+		std::string model;   // Data-relative, lowercased
+		std::string kind;    // "Skeleton", "Hair", "Armour"
+		std::string record;  // the skeleton's folder, the head part's editor ID, the armour's name
+		std::string slot;    // an armour addon's first biped slot, "Body (32)"; empty otherwise
+	};
+
+	// A bone some mesh of the load order has, and what it is listed under
+	struct Bone
+	{
+		std::string name;
+		std::string category;
+	};
+
 	// One BodySlide project as its file has it, kept apart from the merged sets: what it builds and every slider it carries
 	struct BodySlideProject
 	{
@@ -208,6 +225,8 @@ namespace Scan
 		std::vector<BodySlideCategory> categories;
 		std::vector<BodyPreset> bodyPresets;
 		std::vector<SkinModel> skinModels;
+		std::vector<BoneSource> boneSources;
+		std::vector<Bone> bones;
 		std::vector<BodySlideProject> projects;
 		std::vector<BuiltBodyTri> builtTris;
 		std::vector<MorphSummary> faceMorphNames;  // built when linked
@@ -324,4 +343,5 @@ namespace Scan
 	void AddCategorySources(Scanner& a_scanner);
 	void AddPresetSources(Scanner& a_scanner);
 	void AddSkinModelSources(Scanner& a_scanner);
+	void AddBoneSources(Scanner& a_scanner);
 }
