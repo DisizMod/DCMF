@@ -55,6 +55,10 @@ Logic ported from Mfg Fix NG by KrisV-777
 - `src/mfgfix/` — the merge of the console and script channels into the final
   ones, from `RegularUpdate`, and the Papyrus natives its scripts declare,
   answered here, with their smooth forms.
+- `dist/Scripts/MfgConsoleFunc.pex` and `MfgConsoleFuncExt.pex`, shipped
+  unchanged from Mfg Fix NG 1.0.9 so the scripts that declare those natives are
+  present without Mfg Fix installed; their source, also unchanged, is in
+  `dist/Source/Scripts/`.
 
 ## Notices
 

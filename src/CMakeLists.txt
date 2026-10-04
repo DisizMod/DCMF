@@ -140,5 +140,9 @@ if(DCMF_DEPLOY_DIR)
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bodytypes.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bones.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/Scripts" "${DCMF_DEPLOY_DIR}/Scripts"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/Source" "${DCMF_DEPLOY_DIR}/Source"
         COMMENT "Deploying DCMF.dll to ${DCMF_DEPLOY_DIR}")
 endif()

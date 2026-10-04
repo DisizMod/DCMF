@@ -131,8 +131,9 @@ natives their scripts declare -- `MfgConsoleFunc.SetPhonemeModifier` /
 `GetPhonemeModifier` and `MfgConsoleFuncExt.ApplyExpressionPreset` /
 `ResetMFGSmooth` / `SetPhonemeModifierSmooth` / `GetPlayerSpeechTarget` /
 `IsInDialogue` -- so the expression and animation mods that call them keep
-working. Keep the two `.pex` scripts (they are the names the VM resolves; the
-natives behind them are now this plugin's) and delete only the DLL. With the
+working. DCMF ships Mfg Fix NG's two scripts itself (the names the VM
+resolves; the natives behind them are now this plugin's), so Mfg Fix can be
+removed entirely. With the
 DLL still loaded the two blink and ease the face at once; the plugin says so in
 its log and in the panel's problems bar, and leaves Mfg Fix's own natives
 standing rather than registering a second set.
@@ -162,7 +163,7 @@ residue. Override with `-DOER_DEPLOY_DIR=...`.
 
 ## Testing in game
 
-**Remove `mfgfix.dll` first** (Mfg Fix or Mfg Fix NG), keeping their scripts.
+**Remove Mfg Fix first** (Mfg Fix or Mfg Fix NG); DCMF ships its scripts.
 The two hook the same function this does; running both is not a supported
 configuration, and the panel's problems bar says so in red while it is the case.
 
