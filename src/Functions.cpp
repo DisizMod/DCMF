@@ -310,13 +310,16 @@ namespace Functions
 	{
 		auto* topic = topicComponent->GetTESFormValue() ? topicComponent->GetTESFormValue()->As<RE::TESTopic>() : nullptr;
 		if (!a_refr || !topic) {
+			logger::warn("PlayDialogue: {}", !a_refr ? "no reference to say it" : "its topic is not a topic in the load order");
 			return false;
 		}
 		if (auto* actor = a_refr->As<RE::Actor>(); actor && Actor_IsTalking(actor)) {
+			logger::info("PlayDialogue: {:08X} is talking already; topic {:08X} not said", a_refr->GetFormID(), topic->GetFormID());
 			return false;
 		}
 		auto* vm = RE::BSScript::Internal::VirtualMachine::GetSingleton();
 		if (!vm) {
+			logger::error("PlayDialogue: no Papyrus VM");
 			return false;
 		}
 		// ObjectReference.Say on the ref's script object, bound as a Papyrus argument binds it
@@ -327,6 +330,7 @@ namespace Functions
 		auto object = self.GetObject();
 #pragma pop_macro("GetObject")
 		if (!object) {
+			logger::warn("PlayDialogue: {:08X} has no script object to call Say on; topic {:08X} not said", a_refr->GetFormID(), topic->GetFormID());
 			return false;
 		}
 		// Its line does not fire the clip that said it
@@ -335,6 +339,9 @@ namespace Functions
 		}
 		auto* args = RE::MakeFunctionArguments(std::move(topic), static_cast<RE::Actor*>(nullptr), static_cast<bool>(inHeadComponent->bValue));
 		RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback;
-		return vm->DispatchMethodCall1(object, "Say"sv, args, callback);
+		const auto topicID = topicComponent->GetTESFormValue()->GetFormID();
+		const bool bSent = vm->DispatchMethodCall1(object, "Say"sv, args, callback);
+		logger::info("PlayDialogue: Say topic {:08X} on {:08X} {}", topicID, a_refr->GetFormID(), bSent ? "sent; the game says a line only if one of the topic's lines has conditions that pass for this speaker" : "not sent: the VM refused the call");
+		return bSent;
 	}
 }
