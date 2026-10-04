@@ -60,6 +60,12 @@ Logic ported from Mfg Fix NG by KrisV-777
   present without Mfg Fix installed; their source, also unchanged, is in
   `dist/Source/Scripts/`.
 
+### Fitting Room
+
+The editor's previews of head parts and bodies follow the approach of Fitting
+Room by maartenharms (https://github.com/maartenharms/fitting-room,
+GPL-3.0), used as a reference.
+
 ## Notices
 
 ### CommonLibSSE-NG
