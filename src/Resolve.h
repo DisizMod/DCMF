@@ -65,7 +65,8 @@ namespace Resolve
 	[[nodiscard]] std::optional<std::uint64_t> ReferenceValue(Channels::Channel* a_channel, const Apply::Entry& a_entry, const PickContext& a_context = {}, bool* a_outDrewNothing = nullptr);
 
 	// A preset's sliders at both weights, by body morph index; nothing for a preset not found
-	[[nodiscard]] ActorState::PresetMix PresetSliders(std::string_view a_name);
+	// Main thread: built once per preset, kept until the scan or the channel table changes; empty for one not scanned
+	[[nodiscard]] const ActorState::PresetMix& PresetSliders(std::string_view a_name);
 
 	// Partway from one set of sliders to another, a slider missing from either at 0
 	[[nodiscard]] ActorState::PresetMix MixSliders(const ActorState::PresetMix& a_from, const ActorState::PresetMix& a_to, float a_u);

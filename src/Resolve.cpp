@@ -477,18 +477,31 @@ namespace Resolve
 		return g_now;
 	}
 
-	ActorState::PresetMix PresetSliders(std::string_view a_name)
+	const ActorState::PresetMix& PresetSliders(std::string_view a_name)
 	{
-		ActorState::PresetMix out;
+		static const ActorState::PresetMix kNone;
+		static std::unordered_map<std::string, ActorState::PresetMix> cache;
+		static const void* cachedFrom = nullptr;
+		static std::uint32_t cachedGeneration = 0;
+
 		const auto catalogue = Scan::Scanner::GetSingleton().GetCatalogue();
 		if (!catalogue || a_name.empty()) {
-			return out;
+			return kNone;
+		}
+		auto& entries = Apply::Entries::GetSingleton();
+		if (cachedFrom != catalogue.get() || cachedGeneration != entries.Generation()) {
+			cache.clear();
+			cachedFrom = catalogue.get();
+			cachedGeneration = entries.Generation();
+		}
+		if (const auto cached = cache.find(std::string(a_name)); cached != cache.end()) {
+			return cached->second;
 		}
 		const auto it = std::ranges::find(catalogue->bodyPresets, a_name, &Scan::BodyPreset::name);
 		if (it == catalogue->bodyPresets.end()) {
-			return out;
+			return kNone;
 		}
-		auto& entries = Apply::Entries::GetSingleton();
+		auto& out = cache[std::string(a_name)];
 		for (const auto& slider : it->sliders) {
 			if (const auto id = entries.Find(Apply::Kind::kBodyMorph, slider.name); id.IsValid() && (slider.atZero != 0.f || slider.atHundred != 0.f)) {
 				out[id.GetIndex()] = { slider.atZero / 100.f, slider.atHundred / 100.f };
@@ -499,6 +512,10 @@ namespace Resolve
 
 	ActorState::PresetMix MixSliders(const ActorState::PresetMix& a_from, const ActorState::PresetMix& a_to, float a_u)
 	{
+		// Nothing below and the whole way: the preset itself
+		if (a_from.empty() && a_u >= 1.f) {
+			return a_to;
+		}
 		ActorState::PresetMix out;
 		for (const auto& [index, value] : a_to) {
 			const auto was = a_from.find(index);

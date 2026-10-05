@@ -457,7 +457,7 @@ namespace ActorState
 			}
 			// The preset's sliders as the modifiers and the clips folded them, the Actor window's pick in their place
 			const auto refr = state->handle.get();
-			const auto mix = preset ? Resolve::PresetSliders(preset->name) : sampled->presetSliders;
+			const auto& mix = preset ? Resolve::PresetSliders(preset->name) : sampled->presetSliders;
 			const float bodyWeight = Resolve::BodyWeight(*sampled, refr.get());
 			AddPreset(sampled->numbers[static_cast<std::size_t>(Apply::Kind::kBodyMorph)], mix, bodyWeight, sampled->presetTakenOff);
 			for (auto& numbers : sampled->numbers) {
