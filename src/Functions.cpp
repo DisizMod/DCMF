@@ -314,16 +314,39 @@ namespace Functions
 	{
 		topicComponent = AddComponent<FormFunctionComponent>("Topic", "The dialogue topic to say. Pick lists every topic with a line.", RE::FormType::Dialogue);
 		topicComponent->form.pickOverride = [](RE::FormID a_current, std::uint64_t& a_picked) {
-			return UI::UICommon::Picker("Topic", [] {
-				// Plugin > topic, the plugins in load order; a topic none of whose lines holds for the reference actor now greyed
-				auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
+			// The plugins in load order, each one's topics read, and checked against the reference actor, only once it is opened
+			const auto plugins = [] {
+				std::vector<std::string> out;
+				for (const auto& group : Triggers::TopicGroups()) {
+					if (out.empty() || out.back() != group.section) {
+						out.push_back(group.section);
+					}
+				}
+				return out;
+			};
+			return UI::UICommon::AsyncPicker("Topic", [plugins] {
+				std::vector<UI::UICommon::AsyncPickerGroup> groups;
+				for (auto& plugin : plugins()) {
+					groups.push_back({ std::move(plugin), groups.size(), {} });
+				}
+				return groups;
+			}, [plugins](std::uint64_t a_plugin) {
+				// A topic none of whose lines the reference actor can say greyed
 				std::vector<UI::UICommon::PickerItem> items;
+				const auto names = plugins();
+				if (a_plugin >= names.size()) {
+					return items;
+				}
+				auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
 				for (auto& group : Triggers::TopicGroups()) {
-					UI::UICommon::PickerItem item{ std::move(group.label), std::move(group.section), group.key };
+					if (group.section != names[a_plugin]) {
+						continue;
+					}
+					UI::UICommon::PickerItem item{ std::move(group.label), {}, group.key };
 					if (const auto* topic = refr ? RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(group.key)) : nullptr; topic && topic->topicInfos) {
 						const bool bAny = std::ranges::any_of(std::span(topic->topicInfos, topic->numTopicInfos), [&](RE::TESTopicInfo* a_info) { return a_info && Triggers::LineHoldsFor(a_info, refr); });
 						if (!bAny) {
-							item.greyed = std::format("None of its lines holds for {} now.", refr->GetDisplayFullName());
+							item.greyed = std::format("None of its lines can be said by {}.", refr->GetDisplayFullName());
 						}
 					}
 					items.push_back(std::move(item));
