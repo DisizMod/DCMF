@@ -4242,7 +4242,11 @@ namespace Conditions
 				return;
 			}
 			const auto path = part == Scan::SkinPart::kHead ? BodyTypes::HeadPathOf(actor) : BodyTypes::BodyPathOf(actor);
-			a_out.push_back(path.empty() ? std::string(BodyTypes::kVanilla) : BodyTypes::TypeOf(part, path));
+			if (path.empty()) {
+				a_out.push_back(std::string(BodyTypes::kVanilla));
+			} else {
+				std::ranges::move(BodyTypes::TypesOf(part, path), std::back_inserter(a_out));
+			}
 		});
 		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(textComponent->GetTextValue().c_str()) });
 	}

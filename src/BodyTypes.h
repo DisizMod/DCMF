@@ -34,6 +34,7 @@ namespace BodyTypes
 		Scan::SkinPart part = Scan::SkinPart::kBody;
 		std::string path;
 		std::string type;     // a row's name, or vanilla
+		std::vector<std::string> types;  // body: every row naming its project, the first the type
 		std::string uv;       // the row's layout; vanilla's is by sex for a body
 		std::string tri;      // body: the TRI beside it
 		std::string project;  // body: the project whose sliders it carries
@@ -63,6 +64,9 @@ namespace BodyTypes
 
 	// The type of a path, vanilla when nothing names it
 	[[nodiscard]] std::string TypeOf(Scan::SkinPart a_part, std::string_view a_path);
+
+	// Every type a path is: a body whose project several rows name is each of them; else its one type
+	[[nodiscard]] std::vector<std::string> TypesOf(Scan::SkinPart a_part, std::string_view a_path);
 
 	// The UV layout of a path: its row's, else vanilla's for the part and sex
 	[[nodiscard]] std::string UvOf(Scan::SkinPart a_part, std::string_view a_path, bool a_bFemale);

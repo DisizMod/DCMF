@@ -164,14 +164,22 @@ namespace BodyTypes
 				return out;
 			}
 			out.project = best->name;
+			// Every row naming the project: the first gives the type and the layout, the others' layouts must agree
 			for (const auto& row : a_config.bodies) {
-				if (std::ranges::any_of(row.matches, [&](const std::string& a_match) { return SameName(a_match, best->name); })) {
+				if (!std::ranges::any_of(row.matches, [&](const std::string& a_match) { return SameName(a_match, best->name); })) {
+					continue;
+				}
+				if (out.types.empty()) {
 					out.type = row.name;
 					out.uv = row.uv;
-					return out;
+				} else if (!SameName(row.uv, out.uv)) {
+					logger::warn("bodytypes: project '{}' is in '{}' with the UV '{}' and in '{}' with '{}'; '{}' kept", best->name, out.type, out.uv, row.name, row.uv, out.uv);
 				}
+				out.types.push_back(row.name);
 			}
-			out.reason = std::format("project '{}' is in no body row", best->name);
+			if (out.types.empty()) {
+				out.reason = std::format("project '{}' is in no body row", best->name);
+			}
 			return out;
 		}
 
@@ -389,6 +397,19 @@ namespace BodyTypes
 		EnsureResolvedLocked();
 		const auto it = std::ranges::find_if(g_resolutions, [&](const Resolution& a_resolution) { return a_resolution.part == a_part && a_resolution.path == a_path; });
 		return it != g_resolutions.end() ? it->type : std::string(kVanilla);
+	}
+
+	std::vector<std::string> TypesOf(Scan::SkinPart a_part, std::string_view a_path)
+	{
+		if (a_part == Scan::SkinPart::kBody) {
+			std::scoped_lock lock(g_lock);
+			EnsureResolvedLocked();
+			const auto it = std::ranges::find_if(g_resolutions, [&](const Resolution& a_resolution) { return a_resolution.part == a_part && a_resolution.path == a_path; });
+			if (it != g_resolutions.end() && !it->types.empty()) {
+				return it->types;
+			}
+		}
+		return { TypeOf(a_part, a_path) };
 	}
 
 	std::string ModelFor(Scan::SkinPart a_part, std::string_view a_uv, std::string* a_why)

@@ -2900,7 +2900,15 @@ namespace UI
 						UICommon::AddTooltip(std::format("TRI: {}", resolution.tri).data());
 					}
 					ImGui::TableSetColumnIndex(2);
-					ImGui::TextUnformatted(resolution.type.data());
+					if (resolution.types.size() > 1) {
+						std::string types;
+						for (const auto& type : resolution.types) {
+							types += types.empty() ? type : ", " + type;
+						}
+						ImGui::TextUnformatted(types.data());
+					} else {
+						ImGui::TextUnformatted(resolution.type.data());
+					}
 					ImGui::TableSetColumnIndex(3);
 					ImGui::TextUnformatted(resolution.uv.data());
 					ImGui::TableSetColumnIndex(4);
