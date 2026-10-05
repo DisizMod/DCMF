@@ -100,6 +100,14 @@ namespace ActorState
 	};
 
 	// What the pose expansion smooths between frames: each segment's last aim, degrees
+	// The body preset's values at the body weight, sorted by channel: kept while neither the preset nor the weight changes
+	struct PresetMemo
+	{
+		std::shared_ptr<const PresetMix> preset;
+		float weight = -1.f;
+		std::vector<Apply::NumberSample> values;
+	};
+
 	struct PoseMemory
 	{
 		float lastNow = -1.f;
@@ -246,6 +254,8 @@ namespace ActorState
 		Guarded<std::shared_ptr<const Sampled>> sampled;
 		Guarded<Manual> manual;
 		Guarded<PoseMemory> pose;
+		Guarded<PresetMemo> preset;     // the body's
+		Guarded<PresetMemo> smpPreset;  // SMP's copy's, the modifiers' preset without the Actor window's pick
 
 		Guarded<Apply::BodyMorphData> bodyMorph;
 		Guarded<Apply::FaceMorphData> faceMorph;

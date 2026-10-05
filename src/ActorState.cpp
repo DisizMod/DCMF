@@ -40,25 +40,49 @@ namespace ActorState
 		std::vector<Change> g_changes;
 
 		// A preset's sliders read at the body weight, added onto the body's morphs
-		void AddPreset(std::vector<Apply::NumberSample>& a_body, const PresetMix& a_mix, float a_bodyWeight, const std::unordered_map<std::uint32_t, float>& a_takenOff)
+		// A morph is the modifiers' value plus the preset's; an Absolute one the modifiers' alone, the preset's taken back
+		// off as far as it is Absolute. The preset's values are worked out only when the preset or the weight changes,
+		// and merged in sorted, both lists walked once
+		void AddPreset(std::vector<Apply::NumberSample>& a_body, Guarded<PresetMemo>& a_memo, const std::shared_ptr<const PresetMix>& a_preset, float a_bodyWeight,
+			const std::unordered_map<std::uint32_t, float>& a_takenOff)
 		{
-			// The body sorted once and each slider found by halving it, not by walking it
-			std::ranges::sort(a_body, {}, &Apply::NumberSample::index);
-			const auto sorted = static_cast<std::ptrdiff_t>(a_body.size());
-			for (const auto& [index, ends] : a_mix) {
-				float value = std::lerp(ends[0], ends[1], a_bodyWeight);
-				if (!a_takenOff.empty()) {
-					if (const auto off = a_takenOff.find(index); off != a_takenOff.end()) {
-						value *= 1.f - off->second;
+			a_memo.With([&](PresetMemo& a_held) {
+				if (a_held.preset != a_preset || a_held.weight != a_bodyWeight) {
+					a_held.preset = a_preset;
+					a_held.weight = a_bodyWeight;
+					a_held.values.clear();
+					for (const auto& [index, ends] : MixOf(a_preset)) {
+						a_held.values.push_back({ index, std::lerp(ends[0], ends[1], a_bodyWeight) });
+					}
+					std::ranges::sort(a_held.values, {}, &Apply::NumberSample::index);
+				}
+				if (a_held.values.empty()) {
+					return;
+				}
+				std::ranges::sort(a_body, {}, &Apply::NumberSample::index);
+				std::vector<Apply::NumberSample> merged;
+				merged.reserve(a_body.size() + a_held.values.size());
+				auto body = a_body.begin();
+				for (const auto& preset : a_held.values) {
+					for (; body != a_body.end() && body->index < preset.index; ++body) {
+						merged.push_back(*body);
+					}
+					float value = preset.value;
+					if (!a_takenOff.empty()) {
+						if (const auto off = a_takenOff.find(preset.index); off != a_takenOff.end()) {
+							value *= 1.f - off->second;
+						}
+					}
+					if (body != a_body.end() && body->index == preset.index) {
+						merged.push_back({ preset.index, body->value + value });
+						++body;
+					} else {
+						merged.push_back({ preset.index, value });
 					}
 				}
-				const auto end = a_body.begin() + sorted;
-				if (const auto it = std::ranges::lower_bound(a_body.begin(), end, index, {}, &Apply::NumberSample::index); it != end && it->index == index) {
-					it->value += value;
-				} else {
-					a_body.push_back({ index, value });
-				}
-			}
+				merged.insert(merged.end(), body, a_body.end());
+				a_body = std::move(merged);
+			});
 		}
 		std::mutex g_dirtyLock;
 		std::unordered_set<const void*> g_dirty;
@@ -405,7 +429,7 @@ namespace ActorState
 				if (Settings::bPatchSmpBodyCollision && Settings::bSmpInstalled) {
 					if (Resolve::Settled(*state, Resolve::Now())) {
 						auto body = sampled->numbers[static_cast<std::size_t>(Apply::Kind::kBodyMorph)];
-						AddPreset(body, MixOf(sampled->presetSliders), Resolve::BodyWeight(*sampled, refr.get()), sampled->presetTakenOff);
+						AddPreset(body, state->smpPreset, sampled->presetSliders, Resolve::BodyWeight(*sampled, refr.get()), sampled->presetTakenOff);
 						std::ranges::sort(body, {}, &Apply::NumberSample::index);
 						sampled->smpBody = std::move(body);
 					} else {
@@ -465,9 +489,9 @@ namespace ActorState
 			}
 			// The preset's sliders as the modifiers and the clips folded them, the Actor window's pick in their place
 			const auto refr = state->handle.get();
-			const auto& mix = MixOf(preset ? Resolve::PresetSliders(preset->name) : sampled->presetSliders);
+			const auto& mix = preset ? Resolve::PresetSliders(preset->name) : sampled->presetSliders;
 			const float bodyWeight = Resolve::BodyWeight(*sampled, refr.get());
-			AddPreset(sampled->numbers[static_cast<std::size_t>(Apply::Kind::kBodyMorph)], mix, bodyWeight, sampled->presetTakenOff);
+			AddPreset(sampled->numbers[static_cast<std::size_t>(Apply::Kind::kBodyMorph)], state->preset, mix, bodyWeight, sampled->presetTakenOff);
 			for (auto& numbers : sampled->numbers) {
 				std::ranges::sort(numbers, {}, &Apply::NumberSample::index);
 			}
