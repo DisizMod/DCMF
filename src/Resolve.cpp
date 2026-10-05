@@ -485,7 +485,7 @@ namespace Resolve
 			using is_transparent = void;
 			std::size_t operator()(std::string_view a_name) const noexcept { return std::hash<std::string_view>{}(a_name); }
 		};
-		std::unordered_map<std::string, ActorState::PresetMix, NameHash, std::equal_to<>> g_presetSliders;
+		std::unordered_map<std::string, std::shared_ptr<const ActorState::PresetMix>, NameHash, std::equal_to<>> g_presetSliders;
 		const void* g_presetSlidersFrom = nullptr;
 	}
 
@@ -499,19 +499,20 @@ namespace Resolve
 		g_presetSliders.clear();
 		auto& entries = Apply::Entries::GetSingleton();
 		for (const auto& preset : catalogue->bodyPresets) {
-			auto& out = g_presetSliders[preset.name];
+			auto out = std::make_shared<ActorState::PresetMix>();
 			for (const auto& slider : preset.sliders) {
 				if (const auto id = entries.Find(Apply::Kind::kBodyMorph, slider.name); id.IsValid() && (slider.atZero != 0.f || slider.atHundred != 0.f)) {
-					out[id.GetIndex()] = { slider.atZero / 100.f, slider.atHundred / 100.f };
+					(*out)[id.GetIndex()] = { slider.atZero / 100.f, slider.atHundred / 100.f };
 				}
 			}
+			g_presetSliders.insert_or_assign(preset.name, std::move(out));
 		}
 		logger::info("resolve: {} body presets as channels", g_presetSliders.size());
 	}
 
-	const ActorState::PresetMix& PresetSliders(std::string_view a_name)
+	const std::shared_ptr<const ActorState::PresetMix>& PresetSliders(std::string_view a_name)
 	{
-		static const ActorState::PresetMix kNone;
+		static const std::shared_ptr<const ActorState::PresetMix> kNone;
 		const auto it = g_presetSliders.find(a_name);
 		return it != g_presetSliders.end() ? it->second : kNone;
 	}
@@ -756,11 +757,13 @@ namespace Resolve
 
 			// A blended pick, the body preset: its sliders, each modifier's over those below by its transition weight
 			if (entry.type == Apply::ValueType::kBlendedPick) {
-				ActorState::PresetMix running;
+				// The scanned preset itself, shared, while nothing blends it
+				std::shared_ptr<const ActorState::PresetMix> running;
 				for (const auto& contribution : list) {
 					bool bNothing = false;
 					if (auto name = NameOf(contribution.channel, { a_refr, contribution.subMod, contribution.enteredAt }, &bNothing); !name.empty() || bNothing) {
-						running = MixSliders(running, PresetSliders(name), contribution.weight);
+						const auto& preset = PresetSliders(name);
+						running = !running && contribution.weight >= 1.f ? preset : std::make_shared<const ActorState::PresetMix>(MixSliders(ActorState::MixOf(running), ActorState::MixOf(preset), contribution.weight));
 						a_out.presetName = std::move(name);
 					}
 				}

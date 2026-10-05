@@ -704,10 +704,10 @@ namespace ClipPlayer
 
 				// A blended pick, the body preset: its sliders along the keys, from and back to what the modifiers have
 				if (entry.type == Apply::ValueType::kBlendedPick) {
-					auto value = a_running.bExiting ? Resolve::MixSliders(a_running.lastPreset, a_out.presetSliders, Resolve::CurveAt("Ease in out", exitU)) :
-					                                  PresetAt(keys, t, a_running.startPreset, a_out.presetSliders, contextOf);
+					auto value = a_running.bExiting ? Resolve::MixSliders(a_running.lastPreset, ActorState::MixOf(a_out.presetSliders), Resolve::CurveAt("Ease in out", exitU)) :
+					                                  PresetAt(keys, t, a_running.startPreset, ActorState::MixOf(a_out.presetSliders), contextOf);
 					a_running.lastPreset = value;
-					a_out.presetSliders = std::move(value);
+					a_out.presetSliders = std::make_shared<const ActorState::PresetMix>(std::move(value));
 					continue;
 				}
 
@@ -800,7 +800,7 @@ namespace ClipPlayer
 					WrongType(a_key.row, "body preset");
 					return a_underlay;
 				}
-				return Resolve::PresetSliders(Resolve::NameOf(a_key.row, a_contextOf(a_key.keyframe)));
+				return ActorState::MixOf(Resolve::PresetSliders(Resolve::NameOf(a_key.row, a_contextOf(a_key.keyframe))));
 			};
 			std::optional<std::size_t> reached;
 			for (std::size_t i = 0; i < keys.size() && keys[i].time <= t; ++i) {
@@ -998,7 +998,7 @@ namespace ClipPlayer
 			const auto entry = entries.Get(id);
 			const auto kind = static_cast<std::size_t>(id.GetKind());
 			if (entry.type == Apply::ValueType::kBlendedPick) {
-				a_running.startPreset = a_under.presetSliders;
+				a_running.startPreset = ActorState::MixOf(a_under.presetSliders);
 			} else if (entry.type == Apply::ValueType::kNumber || entry.type == Apply::ValueType::kSteppedNumber) {
 				auto* sample = SampleAt(a_under.numbers[kind], id.GetIndex());
 				a_running.startNumbers[id.raw] = sample ? sample->value : RestFor(entry, id, a_refr);

@@ -220,7 +220,7 @@ namespace Preview
 				Merge(a_out.references[k], own.references[k]);
 				Merge(a_out.texts[k], own.texts[k]);
 			}
-			if (!own.presetSliders.empty()) {
+			if (own.presetSliders && !own.presetSliders->empty()) {
 				a_out.presetSliders = std::move(own.presetSliders);
 			}
 			break;

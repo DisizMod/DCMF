@@ -69,7 +69,7 @@ namespace Resolve
 	void BuildPresetSliders();
 
 	// Main thread: a preset's sliders as BuildPresetSliders made them; empty for one not scanned
-	[[nodiscard]] const ActorState::PresetMix& PresetSliders(std::string_view a_name);
+	[[nodiscard]] const std::shared_ptr<const ActorState::PresetMix>& PresetSliders(std::string_view a_name);
 
 	// Partway from one set of sliders to another, a slider missing from either at 0
 	[[nodiscard]] ActorState::PresetMix MixSliders(const ActorState::PresetMix& a_from, const ActorState::PresetMix& a_to, float a_u);

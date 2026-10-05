@@ -63,6 +63,13 @@ namespace ActorState
 	// A body preset mix by body morph index: each slider at weight 0 and at weight 100, read at the body weight last
 	using PresetMix = std::unordered_map<std::uint32_t, std::array<float, 2>>;
 
+	// A shared mix read as a mix: none is empty
+	[[nodiscard]] inline const PresetMix& MixOf(const std::shared_ptr<const PresetMix>& a_mix)
+	{
+		static const PresetMix kNone;
+		return a_mix ? *a_mix : kNone;
+	}
+
 	// Every channel's value on this frame, one list per kind, each sorted by index; swapped each frame by Sample
 	struct Sampled
 	{
@@ -75,7 +82,7 @@ namespace ActorState
 		std::optional<std::array<float, 2>> eyes;  // the gaze's heading and pitch as fractions of the engine's bounds, -1..1
 		float eyesWeight = 1.f;                    // of the eyes over the engine's own, easing to or from the gaze's Engine mode
 		float eyesOffset = 0.f;                    // of the engine's own aim kept under the eyes, the gaze's Offset mode
-		PresetMix presetSliders;  // the body preset's sliders, weighted as a morph is; read at the body weight and added onto the body at the end
+		std::shared_ptr<const PresetMix> presetSliders;  // the body preset's sliders, weighted as a morph is, a scanned preset's own shared while unblended; read at the body weight and added onto the body at the end
 		std::unordered_map<std::uint32_t, float> presetTakenOff;  // body morphs set Absolute, by how much of the preset's own value is taken off
 		bool bAPose = false;      // the preview's Hold A pose: every skeleton bone on its rest, the arms down
 		std::string presetName;   // the highest modifier's body preset, as it was drawn; what the Actor window shows
