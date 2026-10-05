@@ -717,6 +717,13 @@ namespace Channels
 	{
 		constexpr std::array kBlendModes{ "claim"sv, "add"sv, "saturate"sv, "average"sv, "max"sv, "min"sv, "absolute"sv };
 		constexpr std::array kBlendModeLabels{ "Claim"sv, "Add"sv, "Saturate"sv, "Average"sv, "Max"sv, "Min"sv, "Absolute"sv };
+		constexpr std::array kBlendModeTooltips{ "Sets the value: nothing a lower priority modifier sets on this channel counts."sv,
+			"Adds the value to what lower priority modifiers set."sv,
+			"Adds toward 1 without passing it: 1 - (1 - below) x (1 - value)."sv,
+			"Averages with every other modifier set to Average on this channel."sv,
+			"Keeps the higher of the value and what is below."sv,
+			"Keeps the lower of the value and what is below."sv,
+			"As Claim; on a body morph the body preset's own value is taken off too, so the slider ends at exactly this value."sv };
 
 		template <class Enum, std::size_t N>
 		bool FromName(const std::array<std::string_view, N>& a_names, std::string_view a_name, Enum& a_out)
@@ -732,15 +739,22 @@ namespace Channels
 
 		// One combo over a name list, the current one shown; true when another was picked
 		template <class Enum, std::size_t N>
-		bool Combo(const char* a_id, const std::array<std::string_view, N>& a_labels, Enum& a_value)
+		bool Combo(const char* a_id, const std::array<std::string_view, N>& a_labels, Enum& a_value, const std::array<std::string_view, N>* a_tooltips = nullptr)
 		{
 			bool bEdited = false;
-			if (ImGui::BeginCombo(a_id, a_labels[static_cast<std::size_t>(a_value)].data())) {
+			const bool bOpen = ImGui::BeginCombo(a_id, a_labels[static_cast<std::size_t>(a_value)].data());
+			if (a_tooltips && !bOpen) {
+				UI::UICommon::AddTooltip((*a_tooltips)[static_cast<std::size_t>(a_value)].data());
+			}
+			if (bOpen) {
 				for (std::size_t i = 0; i < N; ++i) {
 					const bool bIsCurrent = static_cast<std::size_t>(a_value) == i;
 					if (ImGui::Selectable(a_labels[i].data(), bIsCurrent) && !bIsCurrent) {
 						a_value = static_cast<Enum>(i);
 						bEdited = true;
+					}
+					if (a_tooltips) {
+						UI::UICommon::AddTooltip((*a_tooltips)[i].data());
 					}
 					if (bIsCurrent) {
 						ImGui::SetItemDefaultFocus();
@@ -778,7 +792,7 @@ namespace Channels
 		ImGui::PushID(this);
 		// Claim, nothing below counting, or a way of mixing with what is below
 		ImGui::SetNextItemWidth(totalWidth);
-		bEdited |= Combo("##mode", kBlendModeLabels, mode);
+		bEdited |= Combo("##mode", kBlendModeLabels, mode, &kBlendModeTooltips);
 
 		UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
 		ImGui::TextUnformatted(GetArgument().data());
