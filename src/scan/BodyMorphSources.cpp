@@ -3,6 +3,13 @@
 #include "Tri.h"
 #include "Xml.h"
 
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+
+#include <filesystem>
+#include <fstream>
+
 namespace Scan
 {
 	namespace
@@ -124,6 +131,120 @@ namespace Scan
 			}
 		};
 
+		// What each output TRI read to, kept beside the log between sessions: a file whose size and time have not changed
+		// is not opened again
+		struct TriCacheEntry
+		{
+			std::uintmax_t size = 0;
+			std::int64_t time = 0;
+			std::vector<Tri::BodyTriShape> shapes;
+		};
+		using TriCache = std::unordered_map<std::string, TriCacheEntry>;
+
+		constexpr int kTriCacheVersion = 1;
+
+		std::optional<std::filesystem::path> TriCachePath()
+		{
+			auto directory = logger::log_directory();
+			return directory ? std::optional(*directory / "DCMF.scancache.json") : std::nullopt;
+		}
+
+		// Nothing when there is none yet; a cache that cannot be read is said, and every TRI read again
+		TriCache LoadTriCache()
+		{
+			TriCache cache;
+			const auto path = TriCachePath();
+			if (!path || !std::filesystem::exists(*path)) {
+				return cache;
+			}
+			const auto text = Files::ReadText(*path);
+			rapidjson::Document doc;
+			if (doc.Parse(text.data()).HasParseError() || !doc.IsObject()) {
+				logger::warn("scan: the TRI cache {} is not valid JSON; every output TRI is read again", path->string());
+				return cache;
+			}
+			const auto version = doc.FindMember("version");
+			const auto tris = doc.FindMember("tris");
+			if (version == doc.MemberEnd() || !version->value.IsInt() || version->value.GetInt() != kTriCacheVersion || tris == doc.MemberEnd() || !tris->value.IsArray()) {
+				logger::info("scan: the TRI cache is from another version; every output TRI is read again");
+				return cache;
+			}
+			for (const auto& tri : tris->value.GetArray()) {
+				const auto file = tri.FindMember("path");
+				const auto size = tri.FindMember("size");
+				const auto time = tri.FindMember("time");
+				const auto shapes = tri.FindMember("shapes");
+				if (file == tri.MemberEnd() || !file->value.IsString() || size == tri.MemberEnd() || !size->value.IsUint64() || time == tri.MemberEnd() || !time->value.IsInt64() ||
+					shapes == tri.MemberEnd() || !shapes->value.IsArray()) {
+					logger::warn("scan: a TRI cache row is malformed and is read again");
+					continue;
+				}
+				TriCacheEntry entry{ .size = size->value.GetUint64(), .time = time->value.GetInt64() };
+				for (const auto& shape : shapes->value.GetArray()) {
+					auto& out = entry.shapes.emplace_back();
+					if (const auto name = shape.FindMember("name"); name != shape.MemberEnd() && name->value.IsString()) {
+						out.name = name->value.GetString();
+					}
+					if (const auto morphs = shape.FindMember("morphs"); morphs != shape.MemberEnd() && morphs->value.IsArray()) {
+						for (const auto& morph : morphs->value.GetArray()) {
+							if (morph.IsString()) {
+								out.morphs.emplace_back(morph.GetString());
+							}
+						}
+					}
+				}
+				cache.emplace(file->value.GetString(), std::move(entry));
+			}
+			return cache;
+		}
+
+		void SaveTriCache(const TriCache& a_cache)
+		{
+			const auto path = TriCachePath();
+			if (!path) {
+				logger::warn("scan: no log folder to keep the TRI cache in");
+				return;
+			}
+			rapidjson::StringBuffer buffer;
+			rapidjson::Writer writer(buffer);
+			writer.StartObject();
+			writer.Key("version");
+			writer.Int(kTriCacheVersion);
+			writer.Key("tris");
+			writer.StartArray();
+			for (const auto& [file, entry] : a_cache) {
+				writer.StartObject();
+				writer.Key("path");
+				writer.String(file.data(), static_cast<rapidjson::SizeType>(file.size()));
+				writer.Key("size");
+				writer.Uint64(entry.size);
+				writer.Key("time");
+				writer.Int64(entry.time);
+				writer.Key("shapes");
+				writer.StartArray();
+				for (const auto& shape : entry.shapes) {
+					writer.StartObject();
+					writer.Key("name");
+					writer.String(shape.name.data(), static_cast<rapidjson::SizeType>(shape.name.size()));
+					writer.Key("morphs");
+					writer.StartArray();
+					for (const auto& morph : shape.morphs) {
+						writer.String(morph.data(), static_cast<rapidjson::SizeType>(morph.size()));
+					}
+					writer.EndArray();
+					writer.EndObject();
+				}
+				writer.EndArray();
+				writer.EndObject();
+			}
+			writer.EndArray();
+			writer.EndObject();
+			std::ofstream out(*path, std::ios::binary | std::ios::trunc);
+			if (!out || !out.write(buffer.GetString(), static_cast<std::streamsize>(buffer.GetSize()))) {
+				logger::warn("scan: the TRI cache {} could not be written", path->string());
+			}
+		}
+
 		// The .tri BodySlide writes beside the mesh it builds: the project was built, and these are its morphs
 		class BodySlideOutputTris : public ISource
 		{
@@ -142,21 +263,39 @@ namespace Scan
 				}
 				a_context.progress.total = static_cast<uint32_t>(tris.size());
 
+				const auto cache = LoadTriCache();
+				TriCache next;
+				std::uint32_t reused = 0;
+				std::uint32_t read = 0;
 				for (const auto& [key, path] : tris) {
 					++a_context.progress.done;
 
-					// BodySlide writes loose files; an archive would only be probed for nothing
-					const auto bytes = Files::Read(path, false);
-					if (bytes.empty()) {
+					// BodySlide writes loose files; an archive would only be probed for nothing. A project not built has none
+					const auto file = std::filesystem::path("Data") / Files::Normalize(path);
+					std::error_code ec;
+					const auto size = std::filesystem::file_size(file, ec);
+					const auto time = ec ? 0 : static_cast<std::int64_t>(std::filesystem::last_write_time(file, ec).time_since_epoch().count());
+					if (ec) {
 						continue;
 					}
 
 					std::vector<Tri::BodyTriShape> shapes;
-					std::string error;
-					if (!Tri::ReadBodyTri(bytes, shapes, error)) {
-						a_context.Report(path, error);
-						continue;
+					if (const auto cached = cache.find(path); cached != cache.end() && cached->second.size == size && cached->second.time == time) {
+						shapes = cached->second.shapes;
+						++reused;
+					} else {
+						const auto bytes = Files::Read(path, false);
+						if (bytes.empty()) {
+							continue;
+						}
+						std::string error;
+						if (!Tri::ReadBodyTri(bytes, shapes, error)) {
+							a_context.Report(path, error);
+							continue;
+						}
+						++read;
 					}
+					next.insert_or_assign(path, TriCacheEntry{ size, time, shapes });
 
 					BodyMorphSet set;
 					set.key = key;
@@ -183,6 +322,8 @@ namespace Scan
 					a_context.out.bodyMorphs.push_back(std::move(set));
 					a_context.out.builtTris.push_back(std::move(built));
 				}
+				SaveTriCache(next);
+				logger::info("scan: output TRIs: {} from the cache, {} read from disk", reused, read);
 			}
 		};
 
