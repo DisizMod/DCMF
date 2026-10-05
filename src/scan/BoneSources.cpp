@@ -5,15 +5,14 @@
 #include <rapidjson/document.h>
 
 #include <fstream>
+#include <set>
 
 
 namespace Scan
 {
 	namespace
 	{
-		constexpr auto kPath = "Data/SKSE/Plugins/DCMF.bones.json"sv;
-
-		// The meshes DCMF.bones.json lists; a bone's category is the file it was first found in
+		// The meshes every *.bones.json in the DCMF folder lists, merged; a bone's category is the mesh it was first found in
 		class BoneRecords : public ISource
 		{
 		public:
@@ -23,23 +22,28 @@ namespace Scan
 
 			void Run(Context& a_context) override
 			{
-				std::ifstream file{ std::string(kPath) };
-				if (!file.is_open()) {
-					a_context.Report(kPath, "not found; no bone is scanned");
+				const auto paths = Files::DcmfFiles(".bones.json"sv);
+				if (paths.empty()) {
+					a_context.Report("Data/SKSE/Plugins/DCMF"sv, "no *.bones.json; no bone is scanned");
 					return;
 				}
-				const std::string text{ std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{} };
-				rapidjson::Document document;
-				const bool bValid = !document.Parse(text.data()).HasParseError() && document.IsObject();
-				const auto files = bValid ? document.FindMember("files") : document.MemberEnd();
-				if (!bValid || files == document.MemberEnd() || !files->value.IsArray()) {
-					a_context.Report(kPath, "not valid JSON with a files list; no bone is scanned");
-					return;
-				}
-				for (const auto& path : files->value.GetArray()) {
-					if (path.IsString()) {
-						auto model = Files::Normalize(path.GetString());
-						a_context.out.boneSources.push_back({ model, {}, model, {} });
+				std::set<std::string> seen;
+				for (const auto& listed : paths) {
+					const auto origin = listed.string();
+					rapidjson::Document document;
+					const auto text = Files::ReadText(listed);
+					const bool bValid = !document.Parse(text.data()).HasParseError() && document.IsObject();
+					const auto files = bValid ? document.FindMember("files") : document.MemberEnd();
+					if (!bValid || files == document.MemberEnd() || !files->value.IsArray()) {
+						a_context.Report(origin, "not valid JSON with a files list; its bones are not scanned");
+						continue;
+					}
+					for (const auto& path : files->value.GetArray()) {
+						if (path.IsString()) {
+							if (auto model = Files::Normalize(path.GetString()); seen.insert(model).second) {
+								a_context.out.boneSources.push_back({ model, {}, model, {} });
+							}
+						}
 					}
 				}
 				a_context.progress.total = static_cast<uint32_t>(a_context.out.boneSources.size());

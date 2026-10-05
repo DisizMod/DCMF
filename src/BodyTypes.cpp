@@ -220,24 +220,49 @@ namespace BodyTypes
 
 	void Load()
 	{
-		std::ifstream file{ std::string(kPath) };
+		// Every file's rows merged by name: a later file adds to a row's matches, never removes one; its UV must agree
 		Config config;
-		if (!file.is_open()) {
-			logger::warn("bodytypes: no {}; every actor reads as vanilla until one is saved", kPath);
-		} else {
-			const std::string text{ std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{} };
+		const auto merge = [](std::vector<Row>& a_into, std::vector<Row>&& a_rows, const std::string& a_file) {
+			for (auto& row : a_rows) {
+				auto it = std::ranges::find_if(a_into, [&](const Row& a_row) { return Lower(a_row.name) == Lower(row.name); });
+				if (it == a_into.end()) {
+					row.files = { a_file };
+					a_into.push_back(std::move(row));
+					continue;
+				}
+				if (Lower(it->uv) != Lower(row.uv)) {
+					logger::warn("bodytypes: {} gives '{}' the UV '{}', but {} gave it '{}' first; '{}' kept", a_file, row.name, row.uv, it->files.front(), it->uv, it->uv);
+				}
+				for (auto& match : row.matches) {
+					if (std::ranges::find(it->matches, match) == it->matches.end()) {
+						it->matches.push_back(std::move(match));
+					}
+				}
+				it->files.push_back(a_file);
+			}
+		};
+		const auto paths = Scan::Files::DcmfFiles(".bodytypes.json"sv);
+		if (paths.empty()) {
+			logger::warn("bodytypes: no {}; every actor reads as vanilla", kPattern);
+		}
+		for (const auto& path : paths) {
+			const auto name = path.filename().string();
+			const auto text = Scan::Files::ReadText(path);
 			rapidjson::Document document;
 			if (document.Parse(text.data()).HasParseError() || !document.IsObject()) {
-				logger::warn("bodytypes: {} is not valid JSON; every actor reads as vanilla", kPath);
-			} else {
-				if (const auto bodies = document.FindMember("bodies"); bodies != document.MemberEnd()) {
-					ReadRows(bodies->value, config.bodies);
-				}
-				if (const auto heads = document.FindMember("heads"); heads != document.MemberEnd()) {
-					ReadRows(heads->value, config.heads);
-				}
-				logger::info("bodytypes: {} body row(s), {} head row(s) from {}", config.bodies.size(), config.heads.size(), kPath);
+				logger::warn("bodytypes: {} is not valid JSON; its rows are not read", name);
+				continue;
 			}
+			Config read;
+			if (const auto bodies = document.FindMember("bodies"); bodies != document.MemberEnd()) {
+				ReadRows(bodies->value, read.bodies);
+			}
+			if (const auto heads = document.FindMember("heads"); heads != document.MemberEnd()) {
+				ReadRows(heads->value, read.heads);
+			}
+			logger::info("bodytypes: {} body row(s), {} head row(s) from {}", read.bodies.size(), read.heads.size(), name);
+			merge(config.bodies, std::move(read.bodies), name);
+			merge(config.heads, std::move(read.heads), name);
 		}
 		std::scoped_lock lock(g_lock);
 		g_config = std::move(config);
@@ -254,9 +279,9 @@ namespace BodyTypes
 		rapidjson::StringBuffer buffer;
 		rapidjson::PrettyWriter writer(buffer);
 		document.Accept(writer);
-		std::ofstream file{ std::string(kPath) };
+		std::ofstream file{ std::string(kOwnPath) };
 		if (!file.is_open()) {
-			logger::warn("bodytypes: could not write {}", kPath);
+			logger::warn("bodytypes: could not write {}", kOwnPath);
 			return;
 		}
 		file << buffer.GetString();

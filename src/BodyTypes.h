@@ -6,18 +6,20 @@
 #include <string_view>
 #include <vector>
 
-// Which body and which head an actor has, by name: the rows of DCMF.bodytypes.json, each naming the BodySlide projects
+// Which body and which head an actor has, by name: the rows of every *.bodytypes.json in the DCMF folder, each naming the BodySlide projects
 // or the head model paths that are that type, resolved against what the scan found
 namespace BodyTypes
 {
 	constexpr auto kVanilla = "vanilla"sv;
-	constexpr auto kPath = "Data/SKSE/Plugins/DCMF.bodytypes.json"sv;
+	constexpr auto kOwnPath = "Data/SKSE/Plugins/DCMF/DCMF.bodytypes.json"sv;
+	constexpr auto kPattern = "Data/SKSE/Plugins/DCMF/*.bodytypes.json"sv;
 
 	struct Row
 	{
 		std::string name;
 		std::string uv;                    // the UV layout its textures are painted for: cbbe, unp, ube, vanillamale; vanilla, cotr, khajiit...
 		std::vector<std::string> matches;  // body: project names; head: what the face model's path contains
+		std::vector<std::string> files;    // the files that gave it, in the order read
 	};
 
 	struct Config

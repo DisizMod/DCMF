@@ -2813,7 +2813,7 @@ namespace UI
 			BodyTypes::Load();
 		}
 		ImGui::SameLine();
-		UICommon::TextUnformattedDisabled(BodyTypes::kPath.data());
+		UICommon::TextUnformattedDisabled(BodyTypes::kPattern.data());
 
 		const auto joined = [](const std::vector<std::string>& a_items) {
 			std::string out;
@@ -2838,6 +2838,7 @@ namespace UI
 					ImGui::TableNextRow();
 					ImGui::TableSetColumnIndex(0);
 					ImGui::TextUnformatted(row.name.data());
+					UICommon::AddTooltip(std::format("From {}", joined(row.files)).data());
 					ImGui::TableSetColumnIndex(1);
 					ImGui::TextUnformatted(row.uv.data());
 					ImGui::TableSetColumnIndex(2);

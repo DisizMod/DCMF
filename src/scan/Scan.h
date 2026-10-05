@@ -334,6 +334,9 @@ namespace Scan
 
 		// Loose files only: listing the archives is not possible here
 		[[nodiscard]] std::vector<std::filesystem::path> List(std::string_view a_dataRelativeFolder, std::string_view a_extension, bool a_bRecursive);
+
+		// The loose files in Data/SKSE/Plugins/DCMF ending in a suffix, whatever the case: DCMF's own first, the rest by name
+		[[nodiscard]] std::vector<std::filesystem::path> DcmfFiles(std::string_view a_suffix);
 	}
 
 	// One helper per source family, each adding its own sources

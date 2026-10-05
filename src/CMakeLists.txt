@@ -136,10 +136,11 @@ if(DCMF_DEPLOY_DIR)
                 "$<TARGET_FILE:DCMF>" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "$<TARGET_PDB_FILE:DCMF>" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${DCMF_DEPLOY_DIR}/SKSE/Plugins/DCMF"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bodytypes.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
+                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bodytypes.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/DCMF/"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bones.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/"
+                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bones.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/DCMF/"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/Scripts" "${DCMF_DEPLOY_DIR}/Scripts"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory

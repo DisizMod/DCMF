@@ -138,6 +138,28 @@ namespace Scan
 
 			return out;
 		}
+
+		std::vector<std::filesystem::path> DcmfFiles(std::string_view a_suffix)
+		{
+			const auto lower = [](std::string a_text) {
+				std::ranges::transform(a_text, a_text.begin(), [](unsigned char a_c) { return static_cast<char>(std::tolower(a_c)); });
+				return a_text;
+			};
+			const auto suffix = lower(std::string(a_suffix));
+			const auto own = "dcmf" + suffix;
+			std::vector<std::pair<std::string, std::filesystem::path>> named;
+			for (auto& path : List("SKSE/Plugins/DCMF"sv, ".json"sv, false)) {
+				if (auto name = lower(path.filename().string()); name.ends_with(suffix)) {
+					named.emplace_back(std::move(name), std::move(path));
+				}
+			}
+			std::ranges::sort(named, [&](const auto& a, const auto& b) { return a.first == own || (b.first != own && a.first < b.first); });
+			std::vector<std::filesystem::path> out;
+			for (auto& [name, path] : named) {
+				out.push_back(std::move(path));
+			}
+			return out;
+		}
 	}
 
 	namespace
