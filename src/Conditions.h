@@ -366,11 +366,7 @@ namespace Conditions
 	class IsWornFromPluginCondition : public ConditionBase
 	{
 	public:
-		IsWornFromPluginCondition()
-		{
-			textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case.");
-			textComponent->SetAllowSpaces(true);
-		}
+		IsWornFromPluginCondition();
 
 		[[nodiscard]] RE::BSString GetArgument() const override { return textComponent->GetArgument(); }
 		[[nodiscard]] RE::BSString GetName() const override { return "IsWornFromPlugin"sv.data(); }

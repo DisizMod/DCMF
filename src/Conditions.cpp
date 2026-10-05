@@ -2480,6 +2480,34 @@ namespace Conditions
 
 
 
+	IsWornFromPluginCondition::IsWornFromPluginCondition()
+	{
+		textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the loaded plugins.");
+		textComponent->SetAllowSpaces(true);
+		// The loaded plugins in load order, the light ones after
+		textComponent->text.SetPickerItems([] {
+			std::vector<UI::UICommon::PickerItem> out;
+			if (auto* dataHandler = RE::TESDataHandler::GetSingleton()) {
+				const auto add = [&](const RE::TESFile* const* a_files, std::size_t a_count, const char* a_group) {
+					for (std::size_t i = 0; i < a_count; ++i) {
+						if (a_files[i]) {
+							out.push_back({ std::string(a_files[i]->GetFilename()), a_group, static_cast<std::uint64_t>(out.size()) });
+						}
+					}
+				};
+				const auto* handler = dataHandler;
+				add(handler->GetLoadedMods(), handler->GetLoadedModCount(), "Plugins");
+				add(handler->GetLoadedLightMods(), handler->GetLoadedLightModCount(), "Light plugins");
+			}
+			return out;
+		},
+			[](std::string_view a_name) -> std::string {
+				auto* dataHandler = RE::TESDataHandler::GetSingleton();
+				const bool bLoaded = dataHandler && (dataHandler->LookupLoadedModByName(a_name) || dataHandler->LookupLoadedLightModByName(a_name));
+				return bLoaded ? std::string(a_name) : std::string{};
+			});
+	}
+
 	HasBoneCondition::HasBoneCondition()
 	{
 		textComponent = AddComponent<TextConditionComponent>("Bone name", "The node's own name, as the skeleton or mesh spells it: NPC L Thigh [LThg], L Breast01.");
