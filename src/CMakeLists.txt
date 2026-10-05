@@ -141,6 +141,8 @@ if(DCMF_DEPLOY_DIR)
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bodytypes.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/DCMF/"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bones.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/DCMF/"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/NeCoco.bodytypes.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/DCMF/"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/Scripts" "${DCMF_DEPLOY_DIR}/Scripts"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory

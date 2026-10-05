@@ -1,0 +1,18 @@
+{
+  "bodies": [
+    {
+      "name": "NeCoco",
+      "uv": "UBE",
+      "matches": [
+        "UBE SE 2.0 - Necoco Body"
+      ]
+    },
+    {
+      "name": "UBE",
+      "uv": "UBE",
+      "matches": [
+        "UBE SE 2.0 - Necoco Body"
+      ]
+    }
+  ]
+}
