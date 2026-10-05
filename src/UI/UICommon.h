@@ -127,6 +127,7 @@ namespace UI
 			std::string group;
 			std::uint64_t value = 0;
 			std::string warning;  // drawn in the error colour, this on hover, when set
+			std::string greyed;   // drawn greyed, still pickable, this on hover, when set: not for the selected actor
 		};
 
 		// The width a [Pick] button takes: the two step buttons of an InputInt

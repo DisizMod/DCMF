@@ -3,6 +3,7 @@
 #include "AnimationGraph.h"
 #include "ModRegistry.h"
 #include "RegisteredMods.h"
+#include "UI/UIManager.h"
 
 #include <format>
 #include <map>
@@ -150,6 +151,8 @@ namespace Triggers
 			if (!topic || !topic->topicInfos) {
 				return out;
 			}
+			// A line whose conditions do not hold for the reference actor now is greyed
+			auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
 			for (std::uint32_t i = 0; i < topic->numTopicInfos; ++i) {
 				auto* info = topic->topicInfos[i];
 				if (!info) {
@@ -168,6 +171,9 @@ namespace Triggers
 				UI::UICommon::PickerItem item;
 				item.label = text.empty() ? std::format("(no text) ({:X})", localID) : std::format("{} ({:X})", text, localID);
 				item.value = info->GetFormID();
+				if (refr && !info->objConditions.IsTrue(refr, refr)) {
+					item.greyed = std::format("Its conditions do not hold for {} now.", refr->GetDisplayFullName());
+				}
 				out.push_back(std::move(item));
 			}
 			return out;

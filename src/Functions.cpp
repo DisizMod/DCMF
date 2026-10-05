@@ -6,6 +6,7 @@
 #include "ModRegistry.h"
 #include "RegisteredMods.h"
 #include "Triggers.h"
+#include "UI/UIManager.h"
 #include "UI/UICommon.h"
 
 #include <algorithm>
@@ -314,10 +315,18 @@ namespace Functions
 		topicComponent = AddComponent<FormFunctionComponent>("Topic", "The dialogue topic to say. Pick lists every topic with a line.", RE::FormType::Dialogue);
 		topicComponent->form.pickOverride = [](RE::FormID a_current, std::uint64_t& a_picked) {
 			return UI::UICommon::Picker("Topic", [] {
-				// Plugin > topic, the plugins in load order
+				// Plugin > topic, the plugins in load order; a topic none of whose lines holds for the reference actor now greyed
+				auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
 				std::vector<UI::UICommon::PickerItem> items;
 				for (auto& group : Triggers::TopicGroups()) {
-					items.push_back({ std::move(group.label), std::move(group.section), group.key });
+					UI::UICommon::PickerItem item{ std::move(group.label), std::move(group.section), group.key };
+					if (const auto* topic = refr ? RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(group.key)) : nullptr; topic && topic->topicInfos) {
+						const bool bAny = std::ranges::any_of(std::span(topic->topicInfos, topic->numTopicInfos), [&](RE::TESTopicInfo* a_info) { return a_info && a_info->objConditions.IsTrue(refr, refr); });
+						if (!bAny) {
+							item.greyed = std::format("None of its lines holds for {} now.", refr->GetDisplayFullName());
+						}
+					}
+					items.push_back(std::move(item));
 				}
 				return items;
 			}, a_current, a_picked);

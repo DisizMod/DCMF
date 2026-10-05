@@ -258,6 +258,8 @@ namespace UI::UICommon
 					ImGui::PushID(static_cast<int>(item.value));
 					if (!item.warning.empty()) {
 						ImGui::PushStyleColor(ImGuiCol_Text, ERROR_TEXT_COLOR);
+					} else if (!item.greyed.empty()) {
+						ImGui::PushStyleColor(ImGuiCol_Text, GREYED_COLOR);
 					}
 					if (ImGui::Selectable(item.label.data(), item.value == a_current)) {
 						a_outValue = item.value;
@@ -267,6 +269,9 @@ namespace UI::UICommon
 					if (!item.warning.empty()) {
 						ImGui::PopStyleColor();
 						AddTooltip(item.warning.data());
+					} else if (!item.greyed.empty()) {
+						ImGui::PopStyleColor();
+						AddTooltip(item.greyed.data());
 					}
 					ImGui::PopID();
 				}
@@ -356,16 +361,28 @@ namespace UI::UICommon
 						} else {
 							for (const auto& item : *items) {
 								ImGui::PushID(static_cast<int>(item.value));
+								if (!item.greyed.empty()) {
+									ImGui::PushStyleColor(ImGuiCol_Text, GREYED_COLOR);
+								}
 								if (ImGui::Selectable(item.label.data(), item.value == a_current)) {
 									a_outValue = item.value;
 									bPicked = true;
 									ImGui::CloseCurrentPopup();
 								}
-								// A line wider than the list is read whole on hover
-								if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::CalcTextSize(item.label.data()).x > ImGui::GetContentRegionAvail().x) {
+								if (!item.greyed.empty()) {
+									ImGui::PopStyleColor();
+								}
+								// A line wider than the list is read whole on hover, with why it is greyed
+								const bool bWide = ImGui::CalcTextSize(item.label.data()).x > ImGui::GetContentRegionAvail().x;
+								if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && (bWide || !item.greyed.empty())) {
 									ImGui::BeginTooltip();
 									ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.f);
-									ImGui::TextUnformatted(item.label.data());
+									if (bWide) {
+										ImGui::TextUnformatted(item.label.data());
+									}
+									if (!item.greyed.empty()) {
+										ImGui::TextUnformatted(item.greyed.data());
+									}
 									ImGui::PopTextWrapPos();
 									ImGui::EndTooltip();
 								}
