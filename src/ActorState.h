@@ -76,6 +76,7 @@ namespace ActorState
 		float eyesWeight = 1.f;                    // of the eyes over the engine's own, easing to or from the gaze's Engine mode
 		float eyesOffset = 0.f;                    // of the engine's own aim kept under the eyes, the gaze's Offset mode
 		PresetMix presetSliders;  // the body preset's sliders, weighted as a morph is; read at the body weight and added onto the body at the end
+		std::unordered_map<std::uint32_t, float> presetTakenOff;  // body morphs set Absolute, by how much of the preset's own value is taken off
 		bool bAPose = false;      // the preview's Hold A pose: every skeleton bone on its rest, the arms down
 		std::string presetName;   // the highest modifier's body preset, as it was drawn; what the Actor window shows
 		std::optional<std::vector<Apply::NumberSample>> smpBody;  // the body SMP collides with: the modifiers' morphs and preset alone, held while one is mid-transition; none when the patch is off

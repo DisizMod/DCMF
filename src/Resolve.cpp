@@ -754,6 +754,7 @@ namespace Resolve
 				bool bDriven = false;
 				float averaged = 0.f;
 				float averagedWeight = 0.f;
+				float presetOff = 0.f;  // how much of the body preset's own value an Absolute takes off; a Claim above gives it back
 				for (const auto& contribution : list) {
 					auto* number = dynamic_cast<Channels::NumberChannel*>(contribution.channel);
 					if (!number) {
@@ -780,9 +781,14 @@ namespace Resolve
 					case Mode::kMin:
 						running = std::lerp(running, (std::min)(running, value), w);
 						break;
+					case Mode::kAbsolute:
+						running = std::lerp(running, value, w);
+						presetOff = std::lerp(presetOff, 1.f, w);
+						break;
 					case Mode::kClaim:
 					default:
 						running = std::lerp(running, value, w);
+						presetOff = std::lerp(presetOff, 0.f, w);
 						break;
 					}
 					bDriven = true;
@@ -792,6 +798,9 @@ namespace Resolve
 				}
 				if (bDriven) {
 					a_out.numbers[kind].push_back({ id.GetIndex(), running });
+					if (presetOff > 0.f && id.GetKind() == Apply::Kind::kBodyMorph) {
+						a_out.presetTakenOff[id.GetIndex()] = presetOff;
+					}
 				}
 				break;
 			}

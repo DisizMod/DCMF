@@ -359,7 +359,8 @@ namespace Channels
 			kSaturate,  // 1 - (1 - running)(1 - value): approaches 1 without clipping
 			kAverage,   // the mean of everything averaging this channel
 			kMax,
-			kMin
+			kMin,
+			kAbsolute  // a body morph: claimed, and the body preset's own value for it taken off
 		};
 
 		using IChannelComponent::IChannelComponent;

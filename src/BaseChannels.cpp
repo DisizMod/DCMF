@@ -715,8 +715,8 @@ namespace Channels
 
 	namespace
 	{
-		constexpr std::array kBlendModes{ "claim"sv, "add"sv, "saturate"sv, "average"sv, "max"sv, "min"sv };
-		constexpr std::array kBlendModeLabels{ "Claim"sv, "Add"sv, "Saturate"sv, "Average"sv, "Max"sv, "Min"sv };
+		constexpr std::array kBlendModes{ "claim"sv, "add"sv, "saturate"sv, "average"sv, "max"sv, "min"sv, "absolute"sv };
+		constexpr std::array kBlendModeLabels{ "Claim"sv, "Add"sv, "Saturate"sv, "Average"sv, "Max"sv, "Min"sv, "Absolute"sv };
 
 		template <class Enum, std::size_t N>
 		bool FromName(const std::array<std::string_view, N>& a_names, std::string_view a_name, Enum& a_out)
