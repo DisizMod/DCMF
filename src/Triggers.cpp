@@ -102,7 +102,8 @@ namespace Triggers
 		using Function = RE::FUNCTION_DATA::FunctionID;
 		using Object = RE::CONDITIONITEMOBJECT;
 		constexpr std::array kFixed{ Function::kGetIsID, Function::kGetIsRace, Function::kGetIsSex, Function::kGetIsVoiceType, Function::kGetInFaction,
-			Function::kGetFactionRank, Function::kGetIsClass, Function::kGetIsPlayableRace, Function::kHasKeyword };
+			Function::kGetFactionRank, Function::kGetIsClass, Function::kGetIsPlayableRace, Function::kHasKeyword, Function::kGetStage, Function::kGetStageDone,
+			Function::kGetQuestRunning, Function::kGetQuestCompleted, Function::kGetGlobalValue };
 		for (auto* item = a_info->objConditions.head; item; item = item->next) {
 			const auto object = item->data.object.get();
 			if (std::ranges::find(kFixed, item->data.functionData.function.get()) == kFixed.end() || (object != Object::kSelf && object != Object::kTarget)) {
@@ -110,6 +111,16 @@ namespace Triggers
 			}
 		}
 		return a_info->objConditions.IsTrue(a_refr, a_refr);
+	}
+
+	std::string TopicIdle(const RE::TESTopic* a_topic)
+	{
+		const auto* quest = a_topic ? a_topic->ownerQuest : nullptr;
+		if (!quest || quest->IsRunning()) {
+			return {};
+		}
+		const char* name = quest->GetFormEditorID();
+		return std::format("Its quest, {}, is not running.", name && *name ? name : std::format("{:08X}", quest->GetFormID()));
 	}
 
 	std::vector<UI::UICommon::AsyncPickerGroup> TopicGroups()
@@ -167,8 +178,9 @@ namespace Triggers
 			if (!topic || !topic->topicInfos) {
 				return out;
 			}
-			// A line whose conditions do not hold for the reference actor now is greyed
+			// A line whose conditions do not hold for the reference actor now is greyed, and every line of a topic whose quest is not running
 			auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
+			const auto idle = TopicIdle(topic);
 			for (std::uint32_t i = 0; i < topic->numTopicInfos; ++i) {
 				auto* info = topic->topicInfos[i];
 				if (!info) {
@@ -187,7 +199,9 @@ namespace Triggers
 				UI::UICommon::PickerItem item;
 				item.label = text.empty() ? std::format("(no text) ({:X})", localID) : std::format("{} ({:X})", text, localID);
 				item.value = info->GetFormID();
-				if (refr && !LineHoldsFor(info, refr)) {
+				if (!idle.empty()) {
+					item.greyed = idle;
+				} else if (refr && !LineHoldsFor(info, refr)) {
 					item.greyed = std::format("Its conditions do not hold for {} now.", refr->GetDisplayFullName());
 				}
 				out.push_back(std::move(item));

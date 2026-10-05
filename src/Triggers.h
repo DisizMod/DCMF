@@ -266,6 +266,9 @@ namespace Triggers
 	// Every dialogue topic with a line, for a topic picker
 	[[nodiscard]] std::vector<UI::UICommon::AsyncPickerGroup> TopicGroups();
 
-	// Whether the ref can say a line: tested only when every condition is a fixed fact of the speaker, else taken as yes
+	// Whether the ref can say a line: tested only when every condition is a fact of the speaker or of a quest or global, else taken as yes
 	[[nodiscard]] bool LineHoldsFor(RE::TESTopicInfo* a_info, RE::TESObjectREFR* a_refr);
+
+	// Why none of a topic is said now: its quest not running; empty when it may be
+	[[nodiscard]] std::string TopicIdle(const RE::TESTopic* a_topic);
 }

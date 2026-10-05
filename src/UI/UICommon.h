@@ -149,7 +149,7 @@ namespace UI
 		};
 
 		// The Pick button and a popup of groups whose items are fetched on the main thread the first time a group is
-		// opened, "Loading..." until they arrive, and kept for the session; for lists too costly to build whole, such
+		// opened, "Loading..." until they arrive, and kept until it closes; for lists too costly to build whole, such
 		// as dialogue lines read from the plugins. No search: a group not opened has nothing to search
 		bool AsyncPicker(const char* a_id, const std::function<std::vector<AsyncPickerGroup>()>& a_groups,
 			std::function<std::vector<PickerItem>(std::uint64_t)> a_items, std::uint64_t a_current, std::uint64_t& a_outValue);

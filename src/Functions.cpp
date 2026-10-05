@@ -343,7 +343,10 @@ namespace Functions
 						continue;
 					}
 					UI::UICommon::PickerItem item{ std::move(group.label), {}, group.key };
-					if (const auto* topic = refr ? RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(group.key)) : nullptr; topic && topic->topicInfos) {
+					const auto* topic = RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(group.key));
+					if (auto idle = Triggers::TopicIdle(topic); !idle.empty()) {
+						item.greyed = std::move(idle);
+					} else if (refr && topic && topic->topicInfos) {
 						const bool bAny = std::ranges::any_of(std::span(topic->topicInfos, topic->numTopicInfos), [&](RE::TESTopicInfo* a_info) { return a_info && Triggers::LineHoldsFor(a_info, refr); });
 						if (!bAny) {
 							item.greyed = std::format("None of its lines can be said by {}.", refr->GetDisplayFullName());

@@ -314,9 +314,12 @@ namespace UI::UICommon
 				// The groups, built once when the popup opens, and each opened group's own search
 				static std::vector<AsyncPickerGroup> groups;
 				static std::unordered_map<std::uint64_t, std::string> searches;
+				// Items are fetched again each time it opens, so what they say of the game is current
 				if (ImGui::IsWindowAppearing()) {
 					groups = a_groups();
 					searches.clear();
+					std::scoped_lock guard(cache.lock);
+					cache.items.erase(a_id);
 				}
 
 				// A section's node round its groups, closed, as a group is round its items
