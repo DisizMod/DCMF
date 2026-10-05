@@ -11,6 +11,7 @@
 #include "Offsets.h"
 #include "ModRegistry.h"
 #include "Utils.h"
+#include "UI/UIManager.h"
 #include "apply/Entries.h"
 #include "scan/Scan.h"
 
@@ -2482,12 +2483,18 @@ namespace Conditions
 	HasBoneCondition::HasBoneCondition()
 	{
 		textComponent = AddComponent<TextConditionComponent>("Bone name", "The node's own name, as the skeleton or mesh spells it: NPC L Thigh [LThg], L Breast01.");
-		// Every scanned bone, under the category Scanned Data lists it in
+		// Every scanned bone, under the category Scanned Data lists it in; one the reference actor has not greyed
 		textComponent->text.SetPickerItems([] {
 			std::vector<UI::UICommon::PickerItem> out;
+			auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
+			const auto state = refr ? ActorState::Get(refr->GetHandle()) : nullptr;
+			const auto parts = state ? state->parts.With([](const auto& a_parts) { return a_parts; }) : nullptr;
 			if (const auto catalogue = Scan::Scanner::GetSingleton().GetCatalogue()) {
 				for (const auto& bone : catalogue->bones) {
-					out.push_back({ bone.name, bone.category, static_cast<std::uint64_t>(out.size()) });
+					auto& item = out.emplace_back(bone.name, bone.category, static_cast<std::uint64_t>(out.size()));
+					if (parts && parts->bLoaded && !parts->bones.contains(bone.name)) {
+						item.greyed = std::format("Moves nothing on {}.", refr->GetDisplayFullName());
+					}
 				}
 			}
 			return out;
