@@ -98,19 +98,36 @@ namespace Triggers
 	// Every dialogue topic with a line, by its editor id or name and its plugin, in load order
 	bool LineHoldsFor(RE::TESTopicInfo* a_info, RE::TESObjectREFR* a_refr)
 	{
-		// Any other condition needs the dialogue's own context, the quest's aliases or a package, and crashes without it
+		// Only conditions on the speaker, a quest or a global are tested: any other needs the dialogue's own context, a
+		// quest's aliases or a package, and crashes without it. Without an OR, one failing rules the line out
 		using Function = RE::FUNCTION_DATA::FunctionID;
 		using Object = RE::CONDITIONITEMOBJECT;
 		constexpr std::array kFixed{ Function::kGetIsID, Function::kGetIsRace, Function::kGetIsSex, Function::kGetIsVoiceType, Function::kGetInFaction,
 			Function::kGetFactionRank, Function::kGetIsClass, Function::kGetIsPlayableRace, Function::kHasKeyword, Function::kGetStage, Function::kGetStageDone,
-			Function::kGetQuestRunning, Function::kGetQuestCompleted, Function::kGetGlobalValue };
+			Function::kGetQuestRunning, Function::kGetQuestCompleted, Function::kGetGlobalValue, Function::kIsInDialogueWithPlayer };
+		const auto checkable = [&](const RE::TESConditionItem* a_item) {
+			const auto object = a_item->data.object.get();
+			return std::ranges::find(kFixed, a_item->data.functionData.function.get()) != kFixed.end() && (object == Object::kSelf || object == Object::kTarget) &&
+			       !a_item->data.flags.usesAliases && !a_item->data.flags.usePackData;
+		};
+		bool bAnyOr = false;
 		for (auto* item = a_info->objConditions.head; item; item = item->next) {
-			const auto object = item->data.object.get();
-			if (std::ranges::find(kFixed, item->data.functionData.function.get()) == kFixed.end() || (object != Object::kSelf && object != Object::kTarget)) {
-				return true;
+			bAnyOr = bAnyOr || item->data.flags.isOR;
+		}
+		for (auto* item = a_info->objConditions.head; item; item = item->next) {
+			if (bAnyOr) {
+				// With an OR the list is tested whole, so every condition has to be one that can be
+				if (!checkable(item)) {
+					return true;
+				}
+			} else if (checkable(item)) {
+				RE::ConditionCheckParams params(a_refr, a_refr);
+				if (!item->IsTrue(params)) {
+					return false;
+				}
 			}
 		}
-		return a_info->objConditions.IsTrue(a_refr, a_refr);
+		return !bAnyOr || a_info->objConditions.IsTrue(a_refr, a_refr);
 	}
 
 	std::string TopicIdle(const RE::TESTopic* a_topic)
