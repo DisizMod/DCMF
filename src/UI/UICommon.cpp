@@ -1,5 +1,6 @@
 #include "UICommon.h"
 #include "UIManager.h"
+#include "Utils.h"
 #include <Windows.h>
 #include <dinput.h>
 
@@ -310,10 +311,12 @@ namespace UI::UICommon
 		if (ImGui::BeginPopup("##AsyncPicker")) {
 			const float width = ImGui::GetFontSize() * 30.f;
 			if (ImGui::BeginChild("##list", ImVec2(width, ImGui::GetFontSize() * 16.f))) {
-				// The groups, built once when the popup opens
+				// The groups, built once when the popup opens, and each opened group's own search
 				static std::vector<AsyncPickerGroup> groups;
+				static std::unordered_map<std::uint64_t, std::string> searches;
 				if (ImGui::IsWindowAppearing()) {
 					groups = a_groups();
+					searches.clear();
 				}
 
 				// A section's node round its groups, closed, as a group is round its items
@@ -359,7 +362,13 @@ namespace UI::UICommon
 						} else if (items->empty()) {
 							TextUnformattedDisabled("(nothing)");
 						} else {
+							auto& search = searches[group.key];
+							ImGui::SetNextItemWidth(-FLT_MIN);
+							ImGui::InputTextWithHint("##search", "Search...", &search);
 							for (const auto& item : *items) {
+								if (!search.empty() && !Utils::ContainsStringIgnoreCase(item.label, search)) {
+									continue;
+								}
 								ImGui::PushID(static_cast<int>(item.value));
 								if (!item.greyed.empty()) {
 									ImGui::PushStyleColor(ImGuiCol_Text, GREYED_COLOR);
