@@ -479,7 +479,9 @@ namespace Channels
 			const auto kind = a_id.GetKind();
 			const bool bPose = kind == Apply::Kind::kSpine || kind == Apply::Kind::kHead || kind == Apply::Kind::kGaze;
 			const float start = std::clamp(bPose || entry.start != 0.f ? entry.start : entry.neutral, entry.low, entry.high);
-			channel = std::make_unique<NumberChannel>(entry.low, entry.high, start);
+			auto number = std::make_unique<NumberChannel>(entry.low, entry.high, start);
+			number->blend->bAbsoluteOffered = kind == Apply::Kind::kBodyMorph && entry.bScanned;
+			channel = std::move(number);
 			break;
 		}
 		}

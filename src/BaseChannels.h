@@ -375,6 +375,7 @@ namespace Channels
 		[[nodiscard]] std::string GetArgument() const override;
 
 		Mode mode = Mode::kClaim;
+		bool bAbsoluteOffered = false;  // a body morph's: the one channel a body preset is added onto
 	};
 
 	class ChannelBase

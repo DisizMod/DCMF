@@ -739,7 +739,7 @@ namespace Channels
 
 		// One combo over a name list, the current one shown; true when another was picked
 		template <class Enum, std::size_t N>
-		bool Combo(const char* a_id, const std::array<std::string_view, N>& a_labels, Enum& a_value, const std::array<std::string_view, N>* a_tooltips = nullptr)
+		bool Combo(const char* a_id, const std::array<std::string_view, N>& a_labels, Enum& a_value, const std::array<std::string_view, N>* a_tooltips = nullptr, std::size_t a_offered = N)
 		{
 			bool bEdited = false;
 			const bool bOpen = ImGui::BeginCombo(a_id, a_labels[static_cast<std::size_t>(a_value)].data());
@@ -747,7 +747,7 @@ namespace Channels
 				UI::UICommon::AddTooltip((*a_tooltips)[static_cast<std::size_t>(a_value)].data());
 			}
 			if (bOpen) {
-				for (std::size_t i = 0; i < N; ++i) {
+				for (std::size_t i = 0; i < a_offered; ++i) {
 					const bool bIsCurrent = static_cast<std::size_t>(a_value) == i;
 					if (ImGui::Selectable(a_labels[i].data(), bIsCurrent) && !bIsCurrent) {
 						a_value = static_cast<Enum>(i);
@@ -792,7 +792,8 @@ namespace Channels
 		ImGui::PushID(this);
 		// Claim, nothing below counting, or a way of mixing with what is below
 		ImGui::SetNextItemWidth(totalWidth);
-		bEdited |= Combo("##mode", kBlendModeLabels, mode, &kBlendModeTooltips);
+		// Absolute, last, only where a body preset is added on top
+		bEdited |= Combo("##mode", kBlendModeLabels, mode, &kBlendModeTooltips, bAbsoluteOffered ? kBlendModeLabels.size() : kBlendModeLabels.size() - 1);
 
 		UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
 		ImGui::TextUnformatted(GetArgument().data());
