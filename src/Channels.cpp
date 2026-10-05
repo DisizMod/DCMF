@@ -303,6 +303,66 @@ namespace Channels
 			return reference ? reference->As<RE::Actor>() : nullptr;
 		}
 
+		// The actor a pose row looks at, from the Target and Form beside it in its set: the player, or the chosen
+		// reference; none for the camera, the engine's own target, or a set that does not say
+		RE::TESObjectREFR* PoseTargetOf(const Channel* a_channel, Apply::Kind a_kind)
+		{
+			auto* set = a_channel->GetParentSet();
+			if (!set) {
+				return nullptr;
+			}
+			const auto& entries = Apply::Entries::GetSingleton();
+			const auto targetId = entries.Find(a_kind, "target"sv);
+			const auto formId = entries.Find(a_kind, "form"sv);
+			std::string mode;
+			RE::TESObjectREFR* form = nullptr;
+			const std::function<void(ChannelSet*)> visit = [&](ChannelSet* a_set) {
+				a_set->ForEach([&](std::unique_ptr<ChannelBase>& a_entry) {
+					if (a_entry->IsGroup()) {
+						visit(static_cast<GroupChannel*>(a_entry.get())->channels.get());
+					} else if (const auto id = static_cast<Channel*>(a_entry.get())->GetId(); id == targetId) {
+						if (auto* row = dynamic_cast<ModeChannel*>(a_entry.get())) {
+							mode = row->value->value;
+						}
+					} else if (id == formId) {
+						if (auto* row = dynamic_cast<FormChannel*>(a_entry.get())) {
+							form = row->value->form.GetValue();
+						}
+					}
+					return RE::BSVisit::BSVisitControl::kContinue;
+				});
+			};
+			visit(set);
+			if (mode == "Player"sv) {
+				return RE::PlayerCharacter::GetSingleton();
+			}
+			return mode == "Form"sv ? form : nullptr;
+		}
+
+		// A pose point's bones, one the row's target does not have greyed; nothing greyed without a target or its 3D
+		std::vector<UI::UICommon::PickerItem> TargetBones(const Channel* a_channel, Apply::Kind a_kind)
+		{
+			auto items = SkeletonBones();
+			auto* target = PoseTargetOf(a_channel, a_kind);
+			auto* root = target ? target->Get3D(false) : nullptr;
+			if (!root) {
+				return items;
+			}
+			std::unordered_set<std::string> nodes;
+			RE::BSVisit::TraverseScenegraphObjects(root, [&](RE::NiAVObject* a_object) {
+				if (a_object->AsNode() && !a_object->name.empty()) {
+					nodes.emplace(a_object->name.c_str());
+				}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+			for (auto& item : items) {
+				if (!nodes.contains(item.label)) {
+					item.greyed = std::format("Not on {}.", target->GetDisplayFullName());
+				}
+			}
+			return items;
+		}
+
 		// Why an overlay slot's item would not be drawn on the reference; empty when it would, or when there is none
 		std::function<std::string(std::string_view)> OverlayWarning(Apply::ChannelId a_id, const Apply::Entry& a_entry)
 		{
@@ -392,6 +452,10 @@ namespace Channels
 			// A pose's point is a bone, picked from the human skeleton's or typed for a creature's; the body preset
 			// from every preset
 			channel = std::make_unique<ReferenceChannel>(ItemsFor(a_id, entry));
+			if (entry.name == "targetBone"sv || entry.name == "pairedBone"sv) {
+				auto* reference = static_cast<ReferenceChannel*>(channel.get());
+				reference->value->items = [reference, kind = a_id.GetKind()] { return TargetBones(reference, kind); };
+			}
 			break;
 		case Apply::ValueType::kForm:
 			channel = std::make_unique<FormChannel>();
