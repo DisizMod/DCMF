@@ -96,6 +96,22 @@ namespace Triggers
 	}
 
 	// Every dialogue topic with a line, by its editor id or name and its plugin, in load order
+	bool LineHoldsFor(RE::TESTopicInfo* a_info, RE::TESObjectREFR* a_refr)
+	{
+		// Any other condition needs the dialogue's own context, the quest's aliases or a package, and crashes without it
+		using Function = RE::FUNCTION_DATA::FunctionID;
+		using Object = RE::CONDITIONITEMOBJECT;
+		constexpr std::array kFixed{ Function::kGetIsID, Function::kGetIsRace, Function::kGetIsSex, Function::kGetIsVoiceType, Function::kGetInFaction,
+			Function::kGetFactionRank, Function::kGetIsClass, Function::kGetIsPlayableRace, Function::kHasKeyword };
+		for (auto* item = a_info->objConditions.head; item; item = item->next) {
+			const auto object = item->data.object.get();
+			if (std::ranges::find(kFixed, item->data.functionData.function.get()) == kFixed.end() || (object != Object::kSelf && object != Object::kTarget)) {
+				return true;
+			}
+		}
+		return a_info->objConditions.IsTrue(a_refr, a_refr);
+	}
+
 	std::vector<UI::UICommon::AsyncPickerGroup> TopicGroups()
 	{
 		struct Entry
@@ -171,7 +187,7 @@ namespace Triggers
 				UI::UICommon::PickerItem item;
 				item.label = text.empty() ? std::format("(no text) ({:X})", localID) : std::format("{} ({:X})", text, localID);
 				item.value = info->GetFormID();
-				if (refr && !info->objConditions.IsTrue(refr, refr)) {
+				if (refr && !LineHoldsFor(info, refr)) {
 					item.greyed = std::format("Its conditions do not hold for {} now.", refr->GetDisplayFullName());
 				}
 				out.push_back(std::move(item));

@@ -321,7 +321,7 @@ namespace Functions
 				for (auto& group : Triggers::TopicGroups()) {
 					UI::UICommon::PickerItem item{ std::move(group.label), std::move(group.section), group.key };
 					if (const auto* topic = refr ? RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(group.key)) : nullptr; topic && topic->topicInfos) {
-						const bool bAny = std::ranges::any_of(std::span(topic->topicInfos, topic->numTopicInfos), [&](RE::TESTopicInfo* a_info) { return a_info && a_info->objConditions.IsTrue(refr, refr); });
+						const bool bAny = std::ranges::any_of(std::span(topic->topicInfos, topic->numTopicInfos), [&](RE::TESTopicInfo* a_info) { return a_info && Triggers::LineHoldsFor(a_info, refr); });
 						if (!bAny) {
 							item.greyed = std::format("None of its lines holds for {} now.", refr->GetDisplayFullName());
 						}
@@ -371,13 +371,13 @@ namespace Functions
 		const auto* said = topicComponent->GetTESFormValue()->As<RE::TESTopic>();
 		std::uint32_t passing = 0;
 		for (std::uint32_t i = 0; i < said->numTopicInfos; ++i) {
-			if (auto* info = said->topicInfos[i]; info && info->objConditions.IsTrue(a_refr, a_refr)) {
+			if (auto* info = said->topicInfos[i]; info && Triggers::LineHoldsFor(info, a_refr)) {
 				++passing;
 			}
 		}
 		const bool bSent = vm->DispatchMethodCall1(object, "Say"sv, args, callback);
 		const char* editorID = said->GetFormEditorID();
-		logger::info("PlayDialogue: Say topic {:08X} '{}' on {:08X} {}: {} of its {} line(s) pass their conditions for the speaker", said->GetFormID(), editorID ? editorID : "", a_refr->GetFormID(), bSent ? "sent" : "not sent, the VM refused the call", passing, said->numTopicInfos);
+		logger::info("PlayDialogue: Say topic {:08X} '{}' on {:08X} {}: {} of its {} line(s) open to the speaker, judged on who it is", said->GetFormID(), editorID ? editorID : "", a_refr->GetFormID(), bSent ? "sent" : "not sent, the VM refused the call", passing, said->numTopicInfos);
 		return bSent;
 	}
 }

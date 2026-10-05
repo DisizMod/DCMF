@@ -265,4 +265,7 @@ namespace Triggers
 
 	// Every dialogue topic with a line, for a topic picker
 	[[nodiscard]] std::vector<UI::UICommon::AsyncPickerGroup> TopicGroups();
+
+	// Whether the ref can say a line: tested only when every condition is a fixed fact of the speaker, else taken as yes
+	[[nodiscard]] bool LineHoldsFor(RE::TESTopicInfo* a_info, RE::TESObjectREFR* a_refr);
 }
