@@ -477,37 +477,43 @@ namespace Resolve
 		return g_now;
 	}
 
+	namespace
+	{
+		// The presets as channels, by name; looked up without making a string
+		struct NameHash
+		{
+			using is_transparent = void;
+			std::size_t operator()(std::string_view a_name) const noexcept { return std::hash<std::string_view>{}(a_name); }
+		};
+		std::unordered_map<std::string, ActorState::PresetMix, NameHash, std::equal_to<>> g_presetSliders;
+		const void* g_presetSlidersFrom = nullptr;
+	}
+
+	void BuildPresetSliders()
+	{
+		const auto catalogue = Scan::Scanner::GetSingleton().GetCatalogue();
+		if (!catalogue || catalogue.get() == g_presetSlidersFrom) {
+			return;
+		}
+		g_presetSlidersFrom = catalogue.get();
+		g_presetSliders.clear();
+		auto& entries = Apply::Entries::GetSingleton();
+		for (const auto& preset : catalogue->bodyPresets) {
+			auto& out = g_presetSliders[preset.name];
+			for (const auto& slider : preset.sliders) {
+				if (const auto id = entries.Find(Apply::Kind::kBodyMorph, slider.name); id.IsValid() && (slider.atZero != 0.f || slider.atHundred != 0.f)) {
+					out[id.GetIndex()] = { slider.atZero / 100.f, slider.atHundred / 100.f };
+				}
+			}
+		}
+		logger::info("resolve: {} body presets as channels", g_presetSliders.size());
+	}
+
 	const ActorState::PresetMix& PresetSliders(std::string_view a_name)
 	{
 		static const ActorState::PresetMix kNone;
-		static std::unordered_map<std::string, ActorState::PresetMix> cache;
-		static const void* cachedFrom = nullptr;
-		static std::uint32_t cachedGeneration = 0;
-
-		const auto catalogue = Scan::Scanner::GetSingleton().GetCatalogue();
-		if (!catalogue || a_name.empty()) {
-			return kNone;
-		}
-		auto& entries = Apply::Entries::GetSingleton();
-		if (cachedFrom != catalogue.get() || cachedGeneration != entries.Generation()) {
-			cache.clear();
-			cachedFrom = catalogue.get();
-			cachedGeneration = entries.Generation();
-		}
-		if (const auto cached = cache.find(std::string(a_name)); cached != cache.end()) {
-			return cached->second;
-		}
-		const auto it = std::ranges::find(catalogue->bodyPresets, a_name, &Scan::BodyPreset::name);
-		if (it == catalogue->bodyPresets.end()) {
-			return kNone;
-		}
-		auto& out = cache[std::string(a_name)];
-		for (const auto& slider : it->sliders) {
-			if (const auto id = entries.Find(Apply::Kind::kBodyMorph, slider.name); id.IsValid() && (slider.atZero != 0.f || slider.atHundred != 0.f)) {
-				out[id.GetIndex()] = { slider.atZero / 100.f, slider.atHundred / 100.f };
-			}
-		}
-		return out;
+		const auto it = g_presetSliders.find(a_name);
+		return it != g_presetSliders.end() ? it->second : kNone;
 	}
 
 	ActorState::PresetMix MixSliders(const ActorState::PresetMix& a_from, const ActorState::PresetMix& a_to, float a_u)

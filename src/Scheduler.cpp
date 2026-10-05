@@ -173,6 +173,8 @@ namespace Scheduler
 
 			// The channel tables take in whatever the scan found before anything compiles against them
 			Apply::Entries::GetSingleton().Sync();
+			// Then every body preset as channels, once per scan
+			Resolve::BuildPresetSliders();
 			// The mods on disk, once the scan has named what their channels drive
 			RegisteredMod::LoadAll();
 
