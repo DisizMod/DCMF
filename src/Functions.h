@@ -122,6 +122,22 @@ namespace Functions
 		bool RunImpl(RE::TESObjectREFR* a_refr, void* a_parentSubMod, Trigger* a_trigger) const override;
 	};
 
+	class SendAnimEventFunction : public FunctionBase
+	{
+	public:
+		SendAnimEventFunction();
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return eventNameComponent->GetTextValue(); }
+		[[nodiscard]] RE::BSString GetName() const override { return "SendAnimEvent"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Sends a behavior graph event."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
+
+		TextFunctionComponent* eventNameComponent;
+
+	protected:
+		bool RunImpl(RE::TESObjectREFR* a_refr, void* a_parentSubMod, Trigger* a_trigger) const override;
+	};
+
 	class PlayDialogueFunction : public FunctionBase
 	{
 	public:

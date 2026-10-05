@@ -1,5 +1,6 @@
 #include "Functions.h"
 
+#include "AnimationGraph.h"
 #include "ClipPlayer.h"
 #include "Offsets.h"
 #include "ModRegistry.h"
@@ -34,6 +35,7 @@ namespace Functions
 		registry.AddFunctionFactory("RANDOM"sv, []() -> IFunction* { return new RANDOMFunction(); });
 		registry.AddFunctionFactory("ONE"sv, []() -> IFunction* { return new ONEFunction(); });
 		registry.AddFunctionFactory("PlaySound"sv, []() -> IFunction* { return new PlaySoundFunction(); });
+		registry.AddFunctionFactory("SendAnimEvent"sv, []() -> IFunction* { return new SendAnimEventFunction(); });
 		registry.AddFunctionFactory("PlayDialogue"sv, []() -> IFunction* { return new PlayDialogueFunction(); });
 	}
 
@@ -288,6 +290,23 @@ namespace Functions
 			}
 		}
 		return false;
+	}
+
+	SendAnimEventFunction::SendAnimEventFunction()
+	{
+		eventNameComponent = AddComponent<TextFunctionComponent>("Event name", "The behavior graph event to send. Pick lists the reference actor's.");
+		eventNameComponent->SetAllowSpaces(false);
+		AnimationGraph::SetEventPicker(eventNameComponent->text);
+	}
+
+	bool SendAnimEventFunction::RunImpl(RE::TESObjectREFR* a_refr, void*, Trigger*) const
+	{
+		if (!a_refr) {
+			logger::warn("SendAnimEvent: no reference to send '{}' to", eventNameComponent->GetTextValue().c_str());
+			return false;
+		}
+		ModRegistry::GetSingleton().QueueJob<Jobs::NotifyAnimationGraphJob>(a_refr, eventNameComponent->GetTextValue());
+		return true;
 	}
 
 	PlayDialogueFunction::PlayDialogueFunction()
