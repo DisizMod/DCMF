@@ -158,20 +158,32 @@ namespace Resolve
 		// Whether a BodySlide preset of this name was scanned: a body preset draw skips one that is not installed
 		bool PresetInstalled(std::string_view a_name)
 		{
-			static std::mutex lock;
-			static const Scan::Catalogue* from = nullptr;
-			static std::unordered_set<std::string> names;
-			const auto catalogue = Scan::Scanner::GetSingleton().GetCatalogue();
-			std::scoped_lock guard(lock);
-			if (catalogue.get() != from) {
-				from = catalogue.get();
-				names.clear();
-				for (const auto& preset : catalogue ? catalogue->bodyPresets : std::vector<Scan::BodyPreset>{}) {
-					names.insert(preset.name);
-				}
-			}
-			return names.contains(std::string(a_name));
+			return PresetSliders(a_name) != nullptr;
 		}
+
+		// A random pick's draw, kept until an edit, a reload or a scan: by actor, row, clip or modifier, and activation
+		struct DrawKey
+		{
+			RE::FormID refr;
+			const Channels::Channel* channel;
+			const SubMod* owner;
+			std::uint32_t activatedAt;
+
+			bool operator==(const DrawKey&) const = default;
+		};
+		struct DrawKeyHash
+		{
+			std::size_t operator()(const DrawKey& a_key) const noexcept
+			{
+				std::size_t hash = std::hash<const void*>{}(a_key.channel);
+				hash ^= std::hash<const void*>{}(a_key.owner) + 0x9e3779b97f4a7c15ull + (hash << 6) + (hash >> 2);
+				hash ^= (static_cast<std::size_t>(a_key.refr) << 32 | a_key.activatedAt) + 0x9e3779b97f4a7c15ull + (hash << 6) + (hash >> 2);
+				return hash;
+			}
+		};
+		std::mutex g_drawsLock;
+		std::unordered_map<DrawKey, const Channels::IChannelComponent*, DrawKeyHash> g_draws;
+		constexpr std::size_t kMaxDraws = 65536;
 
 		// A reference row's draw, when its value is a Random Value
 		Channels::RandomValue* PickOf(Channels::Channel* a_channel)
@@ -508,6 +520,7 @@ namespace Resolve
 			g_presetSliders.insert_or_assign(preset.name, std::move(out));
 		}
 		logger::info("resolve: {} body presets as channels", g_presetSliders.size());
+		ForgetDraws();
 	}
 
 	const std::shared_ptr<const ActorState::PresetMix>& PresetSliders(std::string_view a_name)
@@ -555,87 +568,110 @@ namespace Resolve
 		if (!pick) {
 			return std::nullopt;
 		}
-		// Every entry in, a pool opened into its own, each by its weight times the pool's; one the game does not have left out
-		const auto* mod = a_context.owner ? a_context.owner->GetParentMod() : nullptr;
-		std::vector<std::pair<const Channels::IChannelComponent*, float>> entries;
-		float total = 0.f;
-		std::optional<std::vector<Skins::Listed>> skins;
-		const auto drawable = [&](const Channels::IChannelComponent* a_value) {
-			if (const auto* part = dynamic_cast<const Channels::HeadPartChannelComponent*>(a_value)) {
-				return part->form.GetValue() != nullptr;
+		// Drawn once: the activation only counts where the scope draws again on each
+		const DrawKey drawKey{ a_context.refr ? a_context.refr->GetFormID() : 0, a_channel, a_context.owner,
+			pick->scope == Channels::RandomValue::Scope::kActivation ? std::bit_cast<std::uint32_t>(a_context.activatedAt) : 0u };
+		{
+			std::scoped_lock guard(g_drawsLock);
+			if (const auto it = g_draws.find(drawKey); it != g_draws.end()) {
+				return it->second;
 			}
-			const auto* reference = dynamic_cast<const Channels::ReferenceChannelComponent*>(a_value);
-			if (!reference) {
-				return true;
-			}
-			const auto& name = reference->value;
-			switch (a_channel->kind) {
-			case Apply::Kind::kBodyMorph:
-				return PresetInstalled(name);
-			case Apply::Kind::kSkin:
-				if (!skins) {
-					skins = Skins::ListSets();
+		}
+		const auto* drawn = [&]() -> const Channels::IChannelComponent* {
+			// Every entry in, a pool opened into its own, each by its weight times the pool's; one the game does not have left out
+			const auto* mod = a_context.owner ? a_context.owner->GetParentMod() : nullptr;
+			std::vector<std::pair<const Channels::IChannelComponent*, float>> entries;
+			float total = 0.f;
+			std::optional<std::vector<Skins::Listed>> skins;
+			const auto drawable = [&](const Channels::IChannelComponent* a_value) {
+				if (const auto* part = dynamic_cast<const Channels::HeadPartChannelComponent*>(a_value)) {
+					return part->form.GetValue() != nullptr;
 				}
-				return std::ranges::any_of(*skins, [&](const Skins::Listed& a_listed) { return a_listed.set->GetName() == name; });
-			case Apply::Kind::kOverlay:
-				return OverlayIndex(a_channel->identifier, name).has_value();
-			default:
-				return !name.empty();
-			}
-		};
-		for (const auto& entry : pick->list.entries) {
-			if (entry->bDisabled || (entry->pool.empty() && entry->weight <= 0.f)) {
-				continue;
-			}
-			if (!entry->pool.empty()) {
-				if (const auto* pool = mod ? mod->FindReferencePool(entry->pool) : nullptr; pool && pool->GetChannel() == a_channel->GetName()) {
-					for (const auto& item : pool->entries.entries) {
-						if (const float weight = item->weight; !item->bDisabled && item->value && weight > 0.f && drawable(item->value.get())) {
-							entries.emplace_back(item->value.get(), weight);
-							total += weight;
+				const auto* reference = dynamic_cast<const Channels::ReferenceChannelComponent*>(a_value);
+				if (!reference) {
+					return true;
+				}
+				const auto& name = reference->value;
+				switch (a_channel->kind) {
+				case Apply::Kind::kBodyMorph:
+					return PresetInstalled(name);
+				case Apply::Kind::kSkin:
+					if (!skins) {
+						skins = Skins::ListSets();
+					}
+					return std::ranges::any_of(*skins, [&](const Skins::Listed& a_listed) { return a_listed.set->GetName() == name; });
+				case Apply::Kind::kOverlay:
+					return OverlayIndex(a_channel->identifier, name).has_value();
+				default:
+					return !name.empty();
+				}
+			};
+			for (const auto& entry : pick->list.entries) {
+				if (entry->bDisabled || (entry->pool.empty() && entry->weight <= 0.f)) {
+					continue;
+				}
+				if (!entry->pool.empty()) {
+					if (const auto* pool = mod ? mod->FindReferencePool(entry->pool) : nullptr; pool && pool->GetChannel() == a_channel->GetName()) {
+						for (const auto& item : pool->entries.entries) {
+							if (const float weight = item->weight; !item->bDisabled && item->value && weight > 0.f && drawable(item->value.get())) {
+								entries.emplace_back(item->value.get(), weight);
+								total += weight;
+							}
 						}
 					}
+				} else if (entry->value && drawable(entry->value.get())) {
+					entries.emplace_back(entry->value.get(), entry->weight);
+					total += entry->weight;
 				}
-			} else if (entry->value && drawable(entry->value.get())) {
-				entries.emplace_back(entry->value.get(), entry->weight);
-				total += entry->weight;
 			}
-		}
-		if (entries.empty() || total <= 0.f) {
-			return nullptr;
-		}
-		// Drawn from a hash of who and what shares it, so a draw holds across sessions: the scope decides the sharing,
-		// the activation's time in it for one held a single activation
-		using Scope = Channels::RandomValue::Scope;
-		const std::string_view modName = mod ? mod->GetName() : ""sv;
-		const std::string_view ownerName = a_context.owner ? a_context.owner->GetName() : ""sv;
-		std::string key = ActorKey(a_context.refr);
-		switch (pick->scope) {
-		case Scope::kActivation:
-			key += std::format("|{}|{}|{}|{}", modName, ownerName, a_channel->GetName(), std::bit_cast<std::uint32_t>(a_context.activatedAt));
-			break;
-		case Scope::kChannel:
-			key += std::format("|{}|{}|{}", modName, ownerName, a_channel->GetName());
-			break;
-		case Scope::kSubMod:
-			key += std::format("|{}|{}", modName, ownerName);
-			break;
-		case Scope::kRegisteredMod:
-			key += std::format("|{}", modName);
-			break;
-		case Scope::kActor:
-		default:
-			break;
-		}
-		const double unit = static_cast<double>(Fnv1a(key) >> 11) * (1.0 / 9007199254740992.0);
-		double at = unit * total;
-		for (const auto& [value, weight] : entries) {
-			if (at < weight) {
-				return value;
+			if (entries.empty() || total <= 0.f) {
+				return nullptr;
 			}
-			at -= weight;
+			// Drawn from a hash of who and what shares it, so a draw holds across sessions: the scope decides the sharing,
+			// the activation's time in it for one held a single activation
+			using Scope = Channels::RandomValue::Scope;
+			const std::string_view modName = mod ? mod->GetName() : ""sv;
+			const std::string_view ownerName = a_context.owner ? a_context.owner->GetName() : ""sv;
+			std::string key = ActorKey(a_context.refr);
+			switch (pick->scope) {
+			case Scope::kActivation:
+				key += std::format("|{}|{}|{}|{}", modName, ownerName, a_channel->GetName(), std::bit_cast<std::uint32_t>(a_context.activatedAt));
+				break;
+			case Scope::kChannel:
+				key += std::format("|{}|{}|{}", modName, ownerName, a_channel->GetName());
+				break;
+			case Scope::kSubMod:
+				key += std::format("|{}|{}", modName, ownerName);
+				break;
+			case Scope::kRegisteredMod:
+				key += std::format("|{}", modName);
+				break;
+			case Scope::kActor:
+			default:
+				break;
+			}
+			const double unit = static_cast<double>(Fnv1a(key) >> 11) * (1.0 / 9007199254740992.0);
+			double at = unit * total;
+			for (const auto& [value, weight] : entries) {
+				if (at < weight) {
+					return value;
+				}
+				at -= weight;
+			}
+			return entries.back().first;
+		}();
+		std::scoped_lock guard(g_drawsLock);
+		if (g_draws.size() >= kMaxDraws) {
+			g_draws.clear();
 		}
-		return entries.back().first;
+		g_draws.emplace(drawKey, drawn);
+		return drawn;
+	}
+
+	void ForgetDraws()
+	{
+		std::scoped_lock guard(g_drawsLock);
+		g_draws.clear();
 	}
 
 	std::string NameOf(Channels::Channel* a_channel, const PickContext& a_context, bool* a_outDrewNothing)

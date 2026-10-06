@@ -57,6 +57,9 @@ namespace Resolve
 	// A reference row's random pick: the entry's value component drawn, null when nothing can be; nothing for a static row
 	[[nodiscard]] std::optional<const Channels::IChannelComponent*> RandomPick(Channels::Channel* a_channel, const PickContext& a_context);
 
+	// The kept draws dropped: a row, a pool, a skin set or a mod changed, so each is drawn again
+	void ForgetDraws();
+
 	// The name a reference row stands for: its random pick, or its own value; empty for none. A draw with nothing the game
 	// has says so: the channel is set to empty, not left to the rows below
 	[[nodiscard]] std::string NameOf(Channels::Channel* a_channel, const PickContext& a_context, bool* a_outDrewNothing = nullptr);

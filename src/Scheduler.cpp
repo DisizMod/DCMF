@@ -308,7 +308,11 @@ namespace Scheduler
 	}
 
 
-	void Recompile() { g_needsCompile = true; }
+	void Recompile()
+	{
+		g_needsCompile = true;
+		Resolve::ForgetDraws();
+	}
 
 	std::optional<RowAnswer> AnswerFor(const void* a_owner, const void* a_condition)
 	{
