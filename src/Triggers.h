@@ -266,6 +266,12 @@ namespace Triggers
 	// Every dialogue topic with a line, for a topic picker
 	[[nodiscard]] std::vector<UI::UICommon::AsyncPickerGroup> TopicGroups();
 
+	// A topic as the pickers name it: its editor id or name, and its id in its plugin
+	[[nodiscard]] std::string TopicLabel(const RE::TESTopic* a_topic);
+
+	// The key of the Recently played group the dialogue pickers put on top
+	inline constexpr std::uint64_t kRecentGroup = UINT64_MAX;
+
 	// Whether the ref can say a line, judged on its conditions on the speaker, a quest or a global; the rest taken as yes
 	[[nodiscard]] bool LineHoldsFor(RE::TESTopicInfo* a_info, RE::TESObjectREFR* a_refr);
 

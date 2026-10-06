@@ -55,6 +55,9 @@ namespace ClipPlayer
 	// Any thread: a clip had the actor say a topic; the line it begins does not fire that clip
 	void NoteSaid(RE::TESObjectREFR* a_refr, RE::FormID a_topic, const Clip* a_clip);
 
+	// Any thread: the last lines the ref began, newest first, five at most
+	[[nodiscard]] std::vector<RE::FormID> RecentLines(RE::TESObjectREFR* a_refr);
+
 	// Main thread, on a tick, after the modifiers' tick: the clips that end, stop or lose a channel let go, and the
 	// ones fired start when they can. a_passing is every clip whose conditions hold for the actor
 	void Tick(ActorState::State& a_state, RE::TESObjectREFR* a_refr, const std::vector<Clip*>& a_passing, float a_now);

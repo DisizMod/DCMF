@@ -325,23 +325,37 @@ namespace Functions
 				return out;
 			};
 			return UI::UICommon::AsyncPicker("Topic", [plugins] {
-				std::vector<UI::UICommon::AsyncPickerGroup> groups;
+				// The reference actor's last topics on top
+				std::vector<UI::UICommon::AsyncPickerGroup> groups{ { "Recently played", Triggers::kRecentGroup, {} } };
 				for (auto& plugin : plugins()) {
-					groups.push_back({ std::move(plugin), groups.size(), {} });
+					groups.push_back({ std::move(plugin), groups.size() - 1, {} });
 				}
 				return groups;
 			}, [plugins](std::uint64_t a_plugin) {
 				// A topic none of whose lines the reference actor can say greyed
 				std::vector<UI::UICommon::PickerItem> items;
-				const auto names = plugins();
-				if (a_plugin >= names.size()) {
-					return items;
-				}
 				auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
-				for (auto& group : Triggers::TopicGroups()) {
-					if (group.section != names[a_plugin]) {
-						continue;
+				std::vector<UI::UICommon::AsyncPickerGroup> topics;
+				if (a_plugin == Triggers::kRecentGroup) {
+					for (const auto id : ClipPlayer::RecentLines(refr)) {
+						const auto* info = RE::TESForm::LookupByID<RE::TESTopicInfo>(id);
+						const auto* topic = info ? info->parentTopic : nullptr;
+						if (topic && std::ranges::none_of(topics, [&](const auto& a_group) { return a_group.key == topic->GetFormID(); })) {
+							topics.push_back({ Triggers::TopicLabel(topic), topic->GetFormID(), {} });
+						}
 					}
+				} else {
+					const auto names = plugins();
+					if (a_plugin >= names.size()) {
+						return items;
+					}
+					for (auto& group : Triggers::TopicGroups()) {
+						if (group.section == names[a_plugin]) {
+							topics.push_back(std::move(group));
+						}
+					}
+				}
+				for (auto& group : topics) {
 					UI::UICommon::PickerItem item{ std::move(group.label), {}, group.key };
 					const auto* topic = RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(group.key));
 					if (auto idle = Triggers::TopicIdle(topic); !idle.empty()) {

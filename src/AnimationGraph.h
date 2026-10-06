@@ -25,6 +25,9 @@ namespace AnimationGraph
 	// Main thread: the files the ref plays now, with their replacers
 	[[nodiscard]] std::vector<std::string> PlayingOn(RE::TESObjectREFR* a_refr);
 
+	// Any thread: the last files the ref started, newest first, five at most
+	[[nodiscard]] std::vector<std::string> RecentOn(RE::TESObjectREFR* a_refr);
+
 	// The file and replacer pickers, over the reference actor's graph and its project's OAR folders
 	void SetPickers(Components::AnimationValue& a_value);
 

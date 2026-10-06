@@ -342,6 +342,22 @@ namespace ClipPlayer
 			}
 		}
 
+		// The last lines each speaker began, newest first
+		std::mutex g_recentLock;
+		std::unordered_map<RE::FormID, std::vector<RE::FormID>> g_recentLines;
+		constexpr std::size_t kRecentLines = 5;
+
+		void NoteRecentLine(RE::FormID a_speaker, RE::FormID a_line)
+		{
+			std::scoped_lock guard(g_recentLock);
+			auto& recent = g_recentLines[a_speaker];
+			std::erase(recent, a_line);
+			recent.insert(recent.begin(), a_line);
+			if (recent.size() > kRecentLines) {
+				recent.pop_back();
+			}
+		}
+
 		class Sink :
 			public RE::BSTEventSink<RE::TESHitEvent>,
 			public RE::BSTEventSink<RE::TESDeathEvent>,
@@ -368,6 +384,7 @@ namespace ClipPlayer
 			RE::BSEventNotifyControl ProcessEvent(const RE::TESTopicInfoEvent* a_event, RE::BSTEventSource<RE::TESTopicInfoEvent>*) override
 			{
 				if (a_event && a_event->speakerRef && a_event->type == RE::TESTopicInfoEvent::TopicInfoEventType::kTopicBegin) {
+					NoteRecentLine(a_event->speakerRef->GetFormID(), a_event->topicInfoFormID);
 					Queue(a_event->speakerRef.get(), Event::kDialogueLine, a_event->topicInfoFormID);
 				}
 				return RE::BSEventNotifyControl::kContinue;
@@ -433,6 +450,16 @@ namespace ClipPlayer
 			firing.modifier = a_modifier;
 			a_clips.pending.push_back(std::move(firing));
 		});
+	}
+
+	std::vector<RE::FormID> RecentLines(RE::TESObjectREFR* a_refr)
+	{
+		if (!a_refr) {
+			return {};
+		}
+		std::scoped_lock guard(g_recentLock);
+		const auto it = g_recentLines.find(a_refr->GetFormID());
+		return it != g_recentLines.end() ? it->second : std::vector<RE::FormID>{};
 	}
 
 	void NoteSaid(RE::TESObjectREFR* a_refr, RE::FormID a_topic, const Clip* a_clip)

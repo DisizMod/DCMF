@@ -1,6 +1,7 @@
 #include "Triggers.h"
 
 #include "AnimationGraph.h"
+#include "ClipPlayer.h"
 #include "ModRegistry.h"
 #include "RegisteredMods.h"
 #include "UI/UIManager.h"
@@ -140,6 +141,17 @@ namespace Triggers
 		return std::format("Its quest, {}, is not running.", name && *name ? name : std::format("{:08X}", quest->GetFormID()));
 	}
 
+	std::string TopicLabel(const RE::TESTopic* a_topic)
+	{
+		std::string_view name = a_topic->GetFormEditorID();
+		if (name.empty()) {
+			name = a_topic->GetName();
+		}
+		const auto* file = a_topic->GetFile(0);
+		const auto localID = !file ? a_topic->GetFormID() : file->IsLight() ? (a_topic->GetFormID() & 0xFFF) : (a_topic->GetFormID() & 0xFFFFFF);
+		return std::format("{} ({:X})", name.empty() ? "No name"sv : name, localID);
+	}
+
 	std::vector<UI::UICommon::AsyncPickerGroup> TopicGroups()
 	{
 		struct Entry
@@ -159,9 +171,8 @@ namespace Triggers
 					name = topic->GetName();
 				}
 				const auto* file = topic->GetFile(0);
-				const auto localID = !file ? topic->GetFormID() : file->IsLight() ? (topic->GetFormID() & 0xFFF) : (topic->GetFormID() & 0xFFFFFF);
 				UI::UICommon::AsyncPickerGroup group;
-				group.label = std::format("{} ({:X})", name.empty() ? "No name"sv : name, localID);
+				group.label = TopicLabel(topic);
 				group.key = topic->GetFormID();
 				group.section = file ? std::string(file->GetFilename()) : std::string("Created in game");
 				entries.push_back({ file ? file->GetPartialIndex() : 0xFFFFFFFF, name.empty(), std::move(group) });
@@ -187,22 +198,12 @@ namespace Triggers
 
 	namespace
 	{
-		// A topic's lines, each its first response's text read from its plugin, "<text> (ID)"; main thread only
-		std::vector<UI::UICommon::PickerItem> TopicLines(std::uint64_t a_topic)
+		// One line as the picker shows it, its first response's text read from its plugin, "<text> (ID)": greyed when its
+		// conditions do not hold for the reference actor now, or when its topic's quest is not running; main thread only
+		UI::UICommon::PickerItem LineItem(RE::TESTopicInfo* a_info, RE::TESObjectREFR* a_refr, const std::string& a_idle)
 		{
-			std::vector<UI::UICommon::PickerItem> out;
-			auto* topic = RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(a_topic));
-			if (!topic || !topic->topicInfos) {
-				return out;
-			}
-			// A line whose conditions do not hold for the reference actor now is greyed, and every line of a topic whose quest is not running
-			auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
-			const auto idle = TopicIdle(topic);
-			for (std::uint32_t i = 0; i < topic->numTopicInfos; ++i) {
-				auto* info = topic->topicInfos[i];
-				if (!info) {
-					continue;
-				}
+			auto* info = a_info;
+			{
 				std::string text;
 				RE::TESTopicInfo::TESResponseList list{ nullptr };
 				info->GetResponseList(&list);
@@ -216,14 +217,47 @@ namespace Triggers
 				UI::UICommon::PickerItem item;
 				item.label = text.empty() ? std::format("(no text) ({:X})", localID) : std::format("{} ({:X})", text, localID);
 				item.value = info->GetFormID();
-				if (!idle.empty()) {
-					item.greyed = idle;
-				} else if (refr && !LineHoldsFor(info, refr)) {
-					item.greyed = std::format("Its conditions do not hold for {} now.", refr->GetDisplayFullName());
+				if (!a_idle.empty()) {
+					item.greyed = a_idle;
+				} else if (a_refr && !LineHoldsFor(info, a_refr)) {
+					item.greyed = std::format("Its conditions do not hold for {} now.", a_refr->GetDisplayFullName());
 				}
-				out.push_back(std::move(item));
+				return item;
+			}
+		}
+
+		// A topic's lines; the Recently played group's, the reference actor's last lines
+		std::vector<UI::UICommon::PickerItem> TopicLines(std::uint64_t a_topic)
+		{
+			std::vector<UI::UICommon::PickerItem> out;
+			auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
+			if (a_topic == kRecentGroup) {
+				for (const auto id : ClipPlayer::RecentLines(refr)) {
+					if (auto* info = RE::TESForm::LookupByID<RE::TESTopicInfo>(id)) {
+						out.push_back(LineItem(info, refr, TopicIdle(info->parentTopic)));
+					}
+				}
+				return out;
+			}
+			auto* topic = RE::TESForm::LookupByID<RE::TESTopic>(static_cast<RE::FormID>(a_topic));
+			if (!topic || !topic->topicInfos) {
+				return out;
+			}
+			const auto idle = TopicIdle(topic);
+			for (std::uint32_t i = 0; i < topic->numTopicInfos; ++i) {
+				if (auto* info = topic->topicInfos[i]) {
+					out.push_back(LineItem(info, refr, idle));
+				}
 			}
 			return out;
+		}
+
+		// The topics, the Recently played group on top
+		std::vector<UI::UICommon::AsyncPickerGroup> LineGroups()
+		{
+			auto groups = TopicGroups();
+			groups.insert(groups.begin(), UI::UICommon::AsyncPickerGroup{ "Recently played", kRecentGroup, {} });
+			return groups;
 		}
 	}
 
@@ -232,7 +266,7 @@ namespace Triggers
 		topicInfo = AddComponent<FormTriggerComponent>("Topic info"sv, "The line to fire on, a topic info. Pick lists the dialogue topics; opening one reads its lines."sv);
 		topicInfo->value.SetFormTypeFilter(RE::FormType::Info);
 		topicInfo->value.pickOverride = [](std::uint64_t a_current, std::uint64_t& a_picked) {
-			return UI::UICommon::AsyncPicker("TopicInfo", TopicGroups, TopicLines, a_current, a_picked);
+			return UI::UICommon::AsyncPicker("TopicInfo", LineGroups, TopicLines, a_current, a_picked);
 		};
 	}
 

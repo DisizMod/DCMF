@@ -79,6 +79,8 @@ namespace AnimationGraph
 
 		std::mutex g_lock;
 		std::unordered_map<RE::FormID, std::vector<Active>> g_active;  // by the actor's form id
+		std::unordered_map<RE::FormID, std::vector<std::string>> g_recent;  // the last files each actor started, newest first
+		constexpr std::size_t kRecent = 5;
 		std::vector<Ending> g_ending;
 		std::atomic<std::uint32_t> g_frame = 0;
 
@@ -147,6 +149,14 @@ namespace AnimationGraph
 				auto& list = g_active[actor->GetFormID()];
 				std::erase_if(list, [&](const Active& a_entry) { return a_entry.clip == a_this; });
 				list.push_back(active);
+				if (!bSwapped) {
+					auto& recent = g_recent[actor->GetFormID()];
+					std::erase(recent, active.file);
+					recent.insert(recent.begin(), active.file);
+					if (recent.size() > kRecent) {
+						recent.pop_back();
+					}
+				}
 			}
 			if (!bSwapped) {
 				ClipPlayer::QueueAnimation(actor, ClipPlayer::Event::kAnimationStart, active.file, active.replacer);
@@ -431,9 +441,20 @@ namespace AnimationGraph
 		return out;
 	}
 
+	std::vector<std::string> RecentOn(RE::TESObjectREFR* a_refr)
+	{
+		if (!a_refr) {
+			return {};
+		}
+		std::scoped_lock guard(g_lock);
+		const auto it = g_recent.find(a_refr->GetFormID());
+		return it != g_recent.end() ? it->second : std::vector<std::string>{};
+	}
+
 	void SetPickers(Components::AnimationValue& a_value)
 	{
-		// The reference's files, grouped by their folder; said to be missing from it, or that there is no reference
+		// The reference's files, grouped by their folder, the ones it started last on top; said to be missing from it,
+		// or that there is no reference
 		a_value.file.SetPickerItems([] {
 			std::vector<UI::UICommon::PickerItem> out;
 			for (auto& file : ReferenceFiles()) {
@@ -442,6 +463,11 @@ namespace AnimationGraph
 				out.push_back({ std::move(file), std::move(group) });
 			}
 			SortByGroup(out);
+			std::vector<UI::UICommon::PickerItem> recent;
+			for (auto& file : RecentOn(UI::UIManager::GetSingleton().GetRefrToEvaluate())) {
+				recent.push_back({ std::move(file), "Recently played" });
+			}
+			out.insert(out.begin(), std::make_move_iterator(recent.begin()), std::make_move_iterator(recent.end()));
 			return out;
 		},
 			[](std::string_view a_file) -> std::string {
