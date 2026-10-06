@@ -150,7 +150,7 @@ docs/          hook-analysis.md — how the hook point was found, and open quest
 Requires Visual Studio 2022, CMake, and vcpkg.
 
 ```powershell
-cmake -S . -B build -DOER_BUILD_PLUGIN=ON `
+cmake -S . -B build -DDCMF_BUILD_PLUGIN=ON `
     -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake `
     -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
 cmake --build build --config Release
@@ -159,7 +159,7 @@ cmake --build build --config Release
 The plugin build deploys `DCMF.dll`, its PDB and `DCMF.ini` into
 `%LOCALAPPDATA%/ModOrganizer/Skyrim Special Edition/mods/DCMF/SKSE/Plugins`,
 so it appears as an ordinary MO2 mod — toggleable, and removable without
-residue. Override with `-DOER_DEPLOY_DIR=...`.
+residue. Override with `-DDCMF_DEPLOY_DIR=...`.
 
 ## Testing in game
 

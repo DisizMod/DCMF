@@ -249,8 +249,8 @@ Closing the window (`!open`) does: `a_visible = false`, cursor off,
 `preview::Stop()`, `stillness::HoldHead/StopIdles = false`,
 `stillness::Release()`, `thumbs::Clear()`, `meshthumbs::Clear()`.
 
-**Stale in `ui-built.txt`:** the window is titled `DCMF`, not
-`OpenExpressionReplacer`; Drive is a three-way radio at the top of the main
+**Stale in `ui-built.txt`:** the window is titled `DCMF`, not the project's
+old name; Drive is a three-way radio at the top of the main
 window, not a checkbox in the Entries tab; there is a third tab, Patch.
 
 ### 5.2 Tab "Entries" (`Panel.cpp::DrawEntries`) -- read-only
@@ -1158,6 +1158,5 @@ Facts, not proposals.
 
 **Naming drift**
 
-The main ImGui window is `DCMF`; the log is `DCMF log`; the repo, the docs and
-`ui-current.txt` say OpenExpressionReplacer / OER. The banner says "DCMF --
+The main ImGui window is `DCMF`; the log is `DCMF log`. The banner says "DCMF --
 Dynamic Character Modifier Framework".
