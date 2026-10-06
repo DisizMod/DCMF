@@ -4067,7 +4067,7 @@ namespace Conditions
 		}
 		const auto bit = static_cast<RE::BIPED_MODEL::BipedObjectSlot>(1u << *slot);
 		const auto bPlugin = _bPlugin;
-		const auto key = BuiltinResources::TextSet(std::format("dcmf.wornSlot{}.{}", bPlugin ? "Plugins" : "Names", *slot),
+		const auto key = BuiltinResources::TextSet(bPlugin ? BuiltinResources::WornSlotPluginsKey(*slot) : BuiltinResources::WornSlotNamesKey(*slot),
 			bPlugin ? "The plugin that adds what the actor wears in the slot." : "The name of what the actor wears in the slot, as its inventory shows it and as its form has it.",
 			[bit, bPlugin](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
 				auto* actor = ActorOf(a_refr);
@@ -4092,7 +4092,7 @@ namespace Conditions
 						break;
 					}
 				}
-			});
+			}, kWornInterval);
 		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(text) });
 	}
 

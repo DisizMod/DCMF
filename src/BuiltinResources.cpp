@@ -201,6 +201,8 @@ namespace BuiltinResources
 					(void)Resources::Invalidate(kWornSlots, actor);
 					for (std::uint32_t slot = 0; slot < 32; ++slot) {
 						(void)Resources::Invalidate(WornSlotKeywordsKey(slot), actor);
+						(void)Resources::Invalidate(WornSlotNamesKey(slot), actor);
+						(void)Resources::Invalidate(WornSlotPluginsKey(slot), actor);
 					}
 				}
 				return RE::BSEventNotifyControl::kContinue;
@@ -324,9 +326,10 @@ namespace BuiltinResources
 		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::FormSet, Resources::Scope::Actor, refresh, a_intervalSeconds, [&](FunctionGatherer& a_gatherer) { a_gatherer.set = std::move(a_read); });
 	}
 
-	std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read)
+	std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds)
 	{
-		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::TextSet, Resources::Scope::Actor, Resources::Refresh::EveryTick, 0.f, [&](FunctionGatherer& a_gatherer) { a_gatherer.texts = std::move(a_read); });
+		const auto refresh = a_intervalSeconds > 0.f ? Resources::Refresh::Interval : Resources::Refresh::EveryTick;
+		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::TextSet, Resources::Scope::Actor, refresh, a_intervalSeconds, [&](FunctionGatherer& a_gatherer) { a_gatherer.texts = std::move(a_read); });
 	}
 
 	void Drawn(const std::string& a_key, float a_low, float a_high)
@@ -442,6 +445,16 @@ namespace BuiltinResources
 	std::string WornSlotKeywordsKey(std::uint32_t a_slot)
 	{
 		return std::format("dcmf.wornSlotKeywords.{}", a_slot);
+	}
+
+	std::string WornSlotNamesKey(std::uint32_t a_slot)
+	{
+		return std::format("dcmf.wornSlotNames.{}", a_slot);
+	}
+
+	std::string WornSlotPluginsKey(std::uint32_t a_slot)
+	{
+		return std::format("dcmf.wornSlotPlugins.{}", a_slot);
 	}
 
 	std::string ActorValueKey(const Components::NumericValue& a_value)

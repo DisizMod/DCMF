@@ -33,7 +33,7 @@ namespace BuiltinResources
 	[[nodiscard]] std::string Number(std::string a_key, std::string_view a_description, std::function<float(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor);
 	[[nodiscard]] std::string Form(std::string a_key, std::string_view a_description, std::function<RE::TESForm*(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor);
 	[[nodiscard]] std::string FormSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<RE::FormID>&)> a_read, float a_intervalSeconds = 0.f);
-	[[nodiscard]] std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read);
+	[[nodiscard]] std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds = 0.f);
 	// A number drawn between the two for each actor, held until the key is let go
 	void Drawn(const std::string& a_key, float a_low, float a_high);
 	// How long the actor has stood idle, counted from when it was first read
@@ -43,6 +43,8 @@ namespace BuiltinResources
 	// The slots worn and the keywords of what is worn in one, read again on an equip like what is worn
 	inline constexpr auto kWornSlots = "dcmf.wornSlots"sv;
 	[[nodiscard]] std::string WornSlotKeywordsKey(std::uint32_t a_slot);
+	[[nodiscard]] std::string WornSlotNamesKey(std::uint32_t a_slot);
+	[[nodiscard]] std::string WornSlotPluginsKey(std::uint32_t a_slot);
 
 	// A resource read again for an actor when the clip loops or echoes on it, as a Random row that asks to
 	void ResetWith(const SubMod* a_clip, std::string a_key);
