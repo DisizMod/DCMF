@@ -1156,7 +1156,7 @@ namespace Conditions
 		{
 			return _bPlugin ? "Checks if the ref wears an item in the specified slot that a plugin adds."sv.data() : "Checks if the ref wears an item in the specified slot with the specified name."sv.data();
 		}
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
 
 		NumericConditionComponent* slotComponent;
 		TextConditionComponent* textComponent;

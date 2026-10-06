@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
   "name": "openexpressionreplacer",
-  "version-semver": "1.0.0",
+  "version-semver": "1.1.0",
   "description": "Facial animation authority for Skyrim SE 1.5.97",
   "supports": "windows & x64",
   "builtin-baseline": "d1857c260f2072ccdf50bba1bc36d0196e4283df",
