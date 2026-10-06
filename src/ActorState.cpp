@@ -6,6 +6,7 @@
 #include "Resources.h"
 #include "Resolve.h"
 #include "Settings.h"
+#include "Timing.h"
 #include "apply/Entries.h"
 #include "apply/Overlay.h"
 #include "scan/Scan.h"
@@ -417,6 +418,13 @@ namespace ActorState
 			}
 		}
 
+		// Each step's time over every actor, for the Timings window
+		float foldTime = 0.f;
+		float smpTime = 0.f;
+		float clipsTime = 0.f;
+		float poseTime = 0.f;
+		float presetTime = 0.f;
+		float sortTime = 0.f;
 		for (const auto& state : states) {
 			auto sampled = std::make_shared<Sampled>();
 			sampled->generation = ++g_sampleGeneration;
@@ -424,8 +432,12 @@ namespace ActorState
 			// The modifiers first, then the Actor window's holds over them: what an author drags wins while held
 			{
 				const auto refr = state->handle.get();
-				Resolve::Fold(*state, refr.get(), Resolve::Now(), *sampled);
+				{
+					Timing::Scope scope(foldTime);
+					Resolve::Fold(*state, refr.get(), Resolve::Now(), *sampled);
+				}
 				// SMP's body: the modifiers alone, taken once none is mid-transition, else what it was
+				std::optional<Timing::Scope> smpScope(std::in_place, smpTime);
 				if (Settings::bPatchSmpBodyCollision && Settings::bSmpInstalled) {
 					if (Resolve::Settled(*state, Resolve::Now())) {
 						auto body = sampled->numbers[static_cast<std::size_t>(Apply::Kind::kBodyMorph)];
@@ -437,6 +449,8 @@ namespace ActorState
 						sampled->smpBody = previous && previous->smpBody ? previous->smpBody : std::vector<Apply::NumberSample>{};
 					}
 				}
+				smpScope.reset();
+				Timing::Scope scope(clipsTime);
 				ClipPlayer::Fold(*state, refr.get(), Resolve::Now(), *sampled);
 			}
 			state->manual.With([&](const Manual& a_manual) {
@@ -475,9 +489,11 @@ namespace ActorState
 			}
 			// A pose is what it drives: its bones and look modifiers, added onto the sample
 			{
+				Timing::Scope scope(poseTime);
 				const auto refr = state->handle.get();
 				Pose::Expand(*state, refr ? refr->As<RE::Actor>() : nullptr, Resolve::Now(), *sampled);
 			}
+			std::optional<Timing::Scope> presetScope(std::in_place, presetTime);
 			// A body preset is the shape under the sliders: its weights first, what the sliders hold added on top. The
 			// Actor window's pick, else the preset channel's by name
 			const Scan::BodyPreset* preset = nullptr;
@@ -492,6 +508,8 @@ namespace ActorState
 			const auto& mix = preset ? Resolve::PresetSliders(preset->name) : sampled->presetSliders;
 			const float bodyWeight = Resolve::BodyWeight(*sampled, refr.get());
 			AddPreset(sampled->numbers[static_cast<std::size_t>(Apply::Kind::kBodyMorph)], state->preset, mix, bodyWeight, sampled->presetTakenOff);
+			presetScope.reset();
+			Timing::Scope sortScope(sortTime);
 			for (auto& numbers : sampled->numbers) {
 				std::ranges::sort(numbers, {}, &Apply::NumberSample::index);
 			}
@@ -503,6 +521,14 @@ namespace ActorState
 			}
 			state->sampled.With([&](auto& a_sampled) { a_sampled = std::move(sampled); });
 		}
+		Timing::RecordPerFrame([&](Timing::PerFrame& a_frame) {
+			a_frame.sampleFold.Add(foldTime);
+			a_frame.sampleSmp.Add(smpTime);
+			a_frame.sampleClips.Add(clipsTime);
+			a_frame.samplePose.Add(poseTime);
+			a_frame.samplePreset.Add(presetTime);
+			a_frame.sampleSort.Add(sortTime);
+		});
 	}
 
 	void ForEach(const std::function<void(State&)>& a_function)

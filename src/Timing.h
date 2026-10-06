@@ -108,6 +108,12 @@ namespace Timing
 		Stat total;         // all of this mod's work in the frame hook, the scheduler included
 		Stat actorState;    // the fingerprint check, and any tree read it caused
 		Stat sample;        // building each actor's channel values
+		Stat sampleFold;    // of which: the modifiers folded
+		Stat sampleSmp;     // the SMP patch's copy of the body
+		Stat sampleClips;   // the clips folded over them
+		Stat samplePose;    // the poses expanded
+		Stat samplePreset;  // the body preset added onto the body
+		Stat sampleSort;    // the lists sorted
 		Stat applyUpdate;   // the Update pass over every actor
 		Stat upload;        // the render thread's GPU writes, on the frames it had any
 		Stat bodyMorphSum;  // summing a shape's deltas, on the frames a weight changed

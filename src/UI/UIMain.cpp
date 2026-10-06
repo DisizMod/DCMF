@@ -710,6 +710,12 @@ namespace UI
 					row("Total", perFrame.total);
 					row("Actor state", perFrame.actorState);
 					row("Sample", perFrame.sample);
+					row("  Fold modifiers", perFrame.sampleFold);
+					row("  SMP body copy", perFrame.sampleSmp);
+					row("  Fold clips", perFrame.sampleClips);
+					row("  Poses", perFrame.samplePose);
+					row("  Add body preset", perFrame.samplePreset);
+					row("  Sort", perFrame.sampleSort);
 					row("Apply, update pass", perFrame.applyUpdate);
 					row("Body morph sum", perFrame.bodyMorphSum);
 					row("Upload", perFrame.upload);
