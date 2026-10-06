@@ -20,6 +20,7 @@
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 
 
 // ---------------------------------------------------------------- SubMod ---
@@ -913,6 +914,272 @@ namespace
 			return RE::BSVisit::BSVisitControl::kContinue;
 		});
 	}
+
+#pragma push_macro("GetObject")
+#undef GetObject
+	// ---- user edits: what the user changed, kept apart from the author's file and laid over it on load
+
+	constexpr std::array kCollections{ "conditionPresets"sv, "triggerPresets"sv, "overlaySlots"sv, "skinSets"sv, "modifiers"sv, "clips"sv };
+	constexpr int kUserEditsVersion = 2;
+
+	bool IsCollection(std::string_view a_key)
+	{
+		return std::ranges::find(kCollections, a_key) != kCollections.end();
+	}
+
+	std::string_view NameOfItem(const rapidjson::Value& a_item)
+	{
+		const auto name = a_item.IsObject() ? a_item.FindMember("name") : a_item.MemberEnd();
+		return name != a_item.MemberEnd() && name->value.IsString() ? std::string_view(name->value.GetString(), name->value.GetStringLength()) : std::string_view{};
+	}
+
+	rapidjson::Value* ItemNamed(rapidjson::Value& a_list, std::string_view a_name)
+	{
+		for (auto& item : a_list.GetArray()) {
+			if (NameOfItem(item) == a_name) {
+				return &item;
+			}
+		}
+		return nullptr;
+	}
+
+	// What the author's value was, to tell later whether the author changed it under an edit
+	std::string Fingerprint(const rapidjson::Value& a_value)
+	{
+		rapidjson::StringBuffer buffer;
+		rapidjson::Writer writer(buffer);
+		a_value.Accept(writer);
+		return std::format("{:016X}", std::hash<std::string_view>{}(std::string_view(buffer.GetString(), buffer.GetSize())));
+	}
+
+	rapidjson::Value Key(std::string_view a_key, rapidjson::Document::AllocatorType& a_allocator)
+	{
+		return rapidjson::Value(a_key.data(), static_cast<rapidjson::SizeType>(a_key.size()), a_allocator);
+	}
+
+	// One object's differences: a plain value on its own, a list or block whole; a key the user removed is null.
+	// Beside each, the author's fingerprint of it
+	void DiffFields(const rapidjson::Value& a_author, const rapidjson::Value& a_current, bool a_bTop, rapidjson::Value& a_fields, rapidjson::Value& a_prints, rapidjson::Document::AllocatorType& a_allocator)
+	{
+		for (const auto& member : a_current.GetObject()) {
+			const std::string_view key(member.name.GetString(), member.name.GetStringLength());
+			if (a_bTop && IsCollection(key)) {
+				continue;
+			}
+			const auto author = a_author.FindMember(member.name);
+			if (author != a_author.MemberEnd() && author->value == member.value) {
+				continue;
+			}
+			a_fields.AddMember(Key(key, a_allocator), rapidjson::Value(member.value, a_allocator), a_allocator);
+			if (author != a_author.MemberEnd()) {
+				const auto print = Fingerprint(author->value);
+				a_prints.AddMember(Key(key, a_allocator), rapidjson::Value(print.data(), a_allocator), a_allocator);
+			}
+		}
+		for (const auto& member : a_author.GetObject()) {
+			const std::string_view key(member.name.GetString(), member.name.GetStringLength());
+			if ((a_bTop && IsCollection(key)) || a_current.HasMember(member.name)) {
+				continue;
+			}
+			a_fields.AddMember(Key(key, a_allocator), rapidjson::Value(rapidjson::kNullType), a_allocator);
+			const auto print = Fingerprint(member.value);
+			a_prints.AddMember(Key(key, a_allocator), rapidjson::Value(print.data(), a_allocator), a_allocator);
+		}
+	}
+
+	// The user's file: the mod's own fields that differ, per item the fields that differ, the items the user added and
+	// the ones they removed; nothing when the mod is the author's as it is
+	rapidjson::Document UserEdits(const rapidjson::Value& a_author, const rapidjson::Value& a_current, bool& a_outAny)
+	{
+		rapidjson::Document out(rapidjson::kObjectType);
+		auto& allocator = out.GetAllocator();
+		a_outAny = false;
+		out.AddMember("userEdits", kUserEditsVersion, allocator);
+
+		rapidjson::Value modFields(rapidjson::kObjectType);
+		rapidjson::Value modPrints(rapidjson::kObjectType);
+		DiffFields(a_author, a_current, true, modFields, modPrints, allocator);
+		a_outAny = a_outAny || modFields.MemberCount() > 0;
+
+		rapidjson::Value items(rapidjson::kObjectType);
+		rapidjson::Value added(rapidjson::kObjectType);
+		rapidjson::Value removed(rapidjson::kObjectType);
+		static const rapidjson::Value kEmptyList(rapidjson::kArrayType);
+		for (const auto collection : kCollections) {
+			const auto authorIt = a_author.FindMember(collection.data());
+			const auto currentIt = a_current.FindMember(collection.data());
+			const auto& authorList = authorIt != a_author.MemberEnd() && authorIt->value.IsArray() ? authorIt->value : kEmptyList;
+			const auto& currentList = currentIt != a_current.MemberEnd() && currentIt->value.IsArray() ? currentIt->value : kEmptyList;
+
+			rapidjson::Value edited(rapidjson::kObjectType);
+			rapidjson::Value addedHere(rapidjson::kArrayType);
+			rapidjson::Value removedHere(rapidjson::kArrayType);
+			for (const auto& item : currentList.GetArray()) {
+				const auto name = NameOfItem(item);
+				const rapidjson::Value* own = nullptr;
+				for (const auto& candidate : authorList.GetArray()) {
+					if (NameOfItem(candidate) == name) {
+						own = &candidate;
+						break;
+					}
+				}
+				if (!own) {
+					addedHere.PushBack(rapidjson::Value(item, allocator), allocator);
+					continue;
+				}
+				rapidjson::Value fields(rapidjson::kObjectType);
+				rapidjson::Value prints(rapidjson::kObjectType);
+				DiffFields(*own, item, false, fields, prints, allocator);
+				if (fields.MemberCount() > 0) {
+					rapidjson::Value one(rapidjson::kObjectType);
+					one.AddMember("fields", fields, allocator);
+					one.AddMember("author", prints, allocator);
+					edited.AddMember(Key(name, allocator), one, allocator);
+				}
+			}
+			for (const auto& item : authorList.GetArray()) {
+				const auto name = NameOfItem(item);
+				const bool bKept = std::ranges::any_of(currentList.GetArray(), [&](const rapidjson::Value& a_item) { return NameOfItem(a_item) == name; });
+				if (!bKept) {
+					removedHere.PushBack(Key(name, allocator), allocator);
+				}
+			}
+			a_outAny = a_outAny || edited.MemberCount() > 0 || !addedHere.Empty() || !removedHere.Empty();
+			if (edited.MemberCount() > 0) {
+				items.AddMember(Key(collection, allocator), edited, allocator);
+			}
+			if (!addedHere.Empty()) {
+				added.AddMember(Key(collection, allocator), addedHere, allocator);
+			}
+			if (!removedHere.Empty()) {
+				removed.AddMember(Key(collection, allocator), removedHere, allocator);
+			}
+		}
+		out.AddMember("mod", modFields, allocator);
+		out.AddMember("modAuthor", modPrints, allocator);
+		out.AddMember("items", items, allocator);
+		out.AddMember("added", added, allocator);
+		out.AddMember("removed", removed, allocator);
+		return out;
+	}
+
+	// A field laid over its object: null removes it. The author's fingerprint tells whether the author changed it since
+	void ApplyFields(rapidjson::Value& a_object, const rapidjson::Value& a_fields, const rapidjson::Value* a_prints, std::string_view a_where, rapidjson::Document::AllocatorType& a_allocator)
+	{
+		for (const auto& field : a_fields.GetObject()) {
+			const std::string_view key(field.name.GetString(), field.name.GetStringLength());
+			const auto author = a_object.FindMember(field.name);
+			if (a_prints && author != a_object.MemberEnd()) {
+				if (const auto print = a_prints->FindMember(field.name); print != a_prints->MemberEnd() && print->value.IsString() && Fingerprint(author->value) != print->value.GetString()) {
+					logger::warn("storage: {}: the author changed '{}' since the user's edit of it; the user's is kept", a_where, key);
+				}
+			}
+			if (field.value.IsNull()) {
+				a_object.RemoveMember(field.name);
+			} else if (author != a_object.MemberEnd()) {
+				author->value.CopyFrom(field.value, a_allocator);
+			} else {
+				a_object.AddMember(Key(key, a_allocator), rapidjson::Value(field.value, a_allocator), a_allocator);
+			}
+		}
+	}
+
+	// The user's file laid over the author's: false when it is not one, said
+	bool ApplyUserEdits(rapidjson::Document& a_doc, const rapidjson::Value& a_user, std::string_view a_mod)
+	{
+		auto& allocator = a_doc.GetAllocator();
+		const auto object = [&](const char* a_key) -> const rapidjson::Value* {
+			const auto it = a_user.FindMember(a_key);
+			return it != a_user.MemberEnd() && it->value.IsObject() ? &it->value : nullptr;
+		};
+		if (const auto* fields = object("mod")) {
+			ApplyFields(a_doc, *fields, object("modAuthor"), a_mod, allocator);
+		}
+		for (const auto collection : kCollections) {
+			const auto list = [&]() -> rapidjson::Value& {
+				auto it = a_doc.FindMember(collection.data());
+				if (it == a_doc.MemberEnd() || !it->value.IsArray()) {
+					a_doc.RemoveMember(collection.data());
+					a_doc.AddMember(Key(collection, allocator), rapidjson::Value(rapidjson::kArrayType), allocator);
+					it = a_doc.FindMember(collection.data());
+				}
+				return it->value;
+			};
+			if (const auto* removed = object("removed"); removed && removed->HasMember(collection.data()) && (*removed)[collection.data()].IsArray()) {
+				auto& items = list();
+				for (const auto& name : (*removed)[collection.data()].GetArray()) {
+					if (!name.IsString()) {
+						continue;
+					}
+					for (auto it = items.Begin(); it != items.End(); ++it) {
+						if (NameOfItem(*it) == name.GetString()) {
+							items.Erase(it);
+							break;
+						}
+					}
+				}
+			}
+			if (const auto* edited = object("items"); edited && edited->HasMember(collection.data()) && (*edited)[collection.data()].IsObject()) {
+				auto& items = list();
+				for (const auto& one : (*edited)[collection.data()].GetObject()) {
+					const std::string_view name(one.name.GetString(), one.name.GetStringLength());
+					auto* target = ItemNamed(items, name);
+					const auto fields = one.value.IsObject() ? one.value.FindMember("fields") : one.value.MemberEnd();
+					if (!target || fields == one.value.MemberEnd() || !fields->value.IsObject()) {
+						logger::warn("storage: {}: the user's edit of '{}' is not read; the author's file no longer has it", a_mod, name);
+						continue;
+					}
+					const auto prints = one.value.FindMember("author");
+					ApplyFields(*target, fields->value, prints != one.value.MemberEnd() && prints->value.IsObject() ? &prints->value : nullptr, std::format("{} '{}'", a_mod, name), allocator);
+				}
+			}
+			if (const auto* added = object("added"); added && added->HasMember(collection.data()) && (*added)[collection.data()].IsArray()) {
+				auto& items = list();
+				for (const auto& item : (*added)[collection.data()].GetArray()) {
+					if (auto* existing = ItemNamed(items, NameOfItem(item))) {
+						logger::warn("storage: {}: the author now has a '{}' of their own; the user's is kept", a_mod, NameOfItem(item));
+						existing->CopyFrom(item, allocator);
+					} else {
+						items.PushBack(rapidjson::Value(item, allocator), allocator);
+					}
+				}
+			}
+		}
+		return true;
+	}
+
+	// The mod's file as it is read: the author's, with the user's edits laid over it. A user file from before edits were
+	// kept apart is a whole copy, read as it is and made edits only when next saved
+	bool ReadMod(const std::filesystem::path& a_folder, std::string_view a_mod, rapidjson::Document& a_out, Parsing::ConfigSource& a_outSource)
+	{
+		std::error_code ec;
+		const auto author = a_folder / kAuthorFile;
+		const auto user = a_folder / kUserFile;
+		const bool bAuthor = std::filesystem::is_regular_file(author, ec);
+		const bool bUser = std::filesystem::is_regular_file(user, ec);
+		a_outSource = Parsing::ConfigSource::kAuthor;
+		if (bAuthor) {
+			if (!ReadDocument(author, a_out)) {
+				return false;
+			}
+		} else {
+			a_out.SetObject();
+		}
+		if (!bUser) {
+			return bAuthor;
+		}
+		rapidjson::Document edits;
+		if (!ReadDocument(user, edits)) {
+			return bAuthor;
+		}
+		a_outSource = Parsing::ConfigSource::kUser;
+		if (!edits.HasMember("userEdits")) {
+			a_out.Swap(edits);
+			return true;
+		}
+		return ApplyUserEdits(a_out, edits, a_mod);
+	}
+#pragma pop_macro("GetObject")
 }
 
 rapidjson::Value RegisteredMod::Serialize(rapidjson::Document::AllocatorType& a_allocator) const
@@ -1183,14 +1450,14 @@ bool RegisteredMod::ReloadConfig()
 		return false;
 	}
 	rapidjson::Document doc;
-	if (!ReadDocument(*path, doc)) {
+	if (!ReadMod(std::filesystem::path(_path), _name, doc, source)) {
 		return false;
 	}
 	_configSource = source;
 	Parse(doc);
 	_bDirty = false;
 	MarkClean(this);
-	logger::info("storage: '{}' read from {}", _name, path->string());
+	logger::info("storage: '{}' read from {}{}", _name, path->parent_path().string(), source == Parsing::ConfigSource::kUser ? ", with the user's edits" : "");
 	return true;
 }
 
@@ -1199,7 +1466,7 @@ bool RegisteredMod::ReloadSubMod(SubMod* a_subMod)
 	Parsing::ConfigSource source = Parsing::ConfigSource::kAuthor;
 	const auto path = ConfigFile(source);
 	rapidjson::Document doc;
-	if (!path || !ReadDocument(*path, doc)) {
+	if (!path || !ReadMod(std::filesystem::path(_path), _name, doc, source)) {
 		return false;
 	}
 	auto* list = ArrayOf(doc, a_subMod->GetKind() == SubModKind::kClip ? "clips" : "modifiers");
@@ -1233,10 +1500,34 @@ void RegisteredMod::SaveConfig(EditMode a_editMode)
 
 	rapidjson::Document doc(rapidjson::kObjectType);
 	rapidjson::Value value = Serialize(doc.GetAllocator());
+	// The user's file is what differs from the author's: nothing differing, none
+	rapidjson::Document edits;
+	const rapidjson::Value* written = &value;
+	if (bUser) {
+		rapidjson::Document author;
+		if (!std::filesystem::is_regular_file(folder / kAuthorFile, ec) || !ReadDocument(folder / kAuthorFile, author)) {
+			author.SetObject();
+		}
+		bool bAny = false;
+		edits = UserEdits(author, value, bAny);
+		if (!bAny) {
+			std::filesystem::remove(path, ec);
+			_configSource = Parsing::ConfigSource::kAuthor;
+			ForEachSubMod([&](SubMod* a_subMod) {
+				a_subMod->_configSource = _configSource;
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+			_bDirty = false;
+			MarkClean(this);
+			logger::info("storage: '{}' is the author's as it is; no user edits kept", _name);
+			return;
+		}
+		written = &edits;
+	}
 	rapidjson::StringBuffer buffer;
 	rapidjson::PrettyWriter writer(buffer);
 	writer.SetIndent('\t', 1);
-	value.Accept(writer);
+	written->Accept(writer);
 
 	std::ofstream file(path, std::ios::binary | std::ios::trunc);
 	if (!file || !file.write(buffer.GetString(), static_cast<std::streamsize>(buffer.GetSize()))) {
