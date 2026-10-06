@@ -5824,7 +5824,7 @@ namespace UI
 						}
 						if (texture.bEnabled) {
 							if (bEditable) {
-								const char* hint = map == Skins::Map::kDiffuse ? (part == Scan::SkinPart::kHead ? "Diffuse, kept: the face draws its bake..." : "Diffuse, relative to Data/Textures...") :
+								const char* hint = map == Skins::Map::kDiffuse ? "Diffuse, relative to Data/Textures..." :
 								                   map == Skins::Map::kNormal   ? "Normal map (_msn)..." :
 								                   map == Skins::Map::kSpecular ? "Specular (_s)..." :
 								                                                  "Subsurface (_sk)...";

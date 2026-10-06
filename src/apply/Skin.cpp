@@ -33,12 +33,12 @@ namespace Apply
 			return name.find("[Ovl") != std::string_view::npos || name.find("[SOvl") != std::string_view::npos || name.starts_with(Overlay::kNodePrefix);
 		}
 
-		// The material's slot for a map: the skin's four on the base, the face's subsurface on its own material
+		// The material's slot for a map: the skin's four on the base, the face's subsurface on its own material; its FaceGen bake is the tint, left alone
 		RE::NiPointer<RE::NiSourceTexture>* SlotOf(RE::BSLightingShaderMaterialBase* a_material, bool a_bFace, Skins::Map a_map)
 		{
 			switch (a_map) {
 			case Skins::Map::kDiffuse:
-				return a_bFace ? nullptr : &a_material->diffuseTexture;  // the face's diffuse is the FaceGen bake
+				return &a_material->diffuseTexture;
 			case Skins::Map::kNormal:
 				return &a_material->normalTexture;
 			case Skins::Map::kSpecular:
