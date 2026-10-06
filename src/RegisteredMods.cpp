@@ -1148,35 +1148,58 @@ namespace
 		return true;
 	}
 
-	// The mod's file as it is read: the author's, with the user's edits laid over it. A user file from before edits were
-	// kept apart is a whole copy, read as it is and made edits only when next saved
-	bool ReadMod(const std::filesystem::path& a_folder, std::string_view a_mod, rapidjson::Document& a_out, Parsing::ConfigSource& a_outSource)
+	std::string EditedKey(SubModKind a_kind, std::string_view a_name)
 	{
-		std::error_code ec;
-		const auto author = a_folder / kAuthorFile;
-		const auto user = a_folder / kUserFile;
-		const bool bAuthor = std::filesystem::is_regular_file(author, ec);
-		const bool bUser = std::filesystem::is_regular_file(user, ec);
-		a_outSource = Parsing::ConfigSource::kAuthor;
-		if (bAuthor) {
-			if (!ReadDocument(author, a_out)) {
-				return false;
+		return std::format("{}/{}", a_kind == SubModKind::kClip ? "clips" : "modifiers", a_name);
+	}
+
+	// The clips and modifiers a user's file edits or adds
+	std::unordered_set<std::string> EditedItems(const rapidjson::Value& a_edits)
+	{
+		std::unordered_set<std::string> out;
+		const auto object = [&](const char* a_key) -> const rapidjson::Value* {
+			const auto it = a_edits.FindMember(a_key);
+			return it != a_edits.MemberEnd() && it->value.IsObject() ? &it->value : nullptr;
+		};
+		for (const auto [collection, kind] : { std::pair{ "modifiers", SubModKind::kModifier }, std::pair{ "clips", SubModKind::kClip } }) {
+			if (const auto* items = object("items"); items && items->HasMember(collection) && (*items)[collection].IsObject()) {
+				for (const auto& one : (*items)[collection].GetObject()) {
+					out.insert(EditedKey(kind, std::string_view(one.name.GetString(), one.name.GetStringLength())));
+				}
 			}
+			if (const auto* added = object("added"); added && added->HasMember(collection) && (*added)[collection].IsArray()) {
+				for (const auto& item : (*added)[collection].GetArray()) {
+					out.insert(EditedKey(kind, NameOfItem(item)));
+				}
+			}
+		}
+		return out;
+	}
+
+	// The mod as it is read: the author's as this build writes it, with the user's edits laid over it, and what they edit.
+	// A user file from before edits were kept apart is a whole copy, read as it is and made edits only when next saved
+	bool ReadMod(const std::filesystem::path& a_folder, std::string_view a_mod, const rapidjson::Value& a_author, rapidjson::Document& a_out, Parsing::ConfigSource& a_outSource, std::optional<std::unordered_set<std::string>>& a_outEdited)
+	{
+		if (a_author.IsObject()) {
+			a_out.CopyFrom(a_author, a_out.GetAllocator());
 		} else {
 			a_out.SetObject();
 		}
-		if (!bUser) {
-			return bAuthor;
-		}
+		a_outSource = Parsing::ConfigSource::kAuthor;
+		a_outEdited.emplace();
+		std::error_code ec;
+		const auto user = a_folder / kUserFile;
 		rapidjson::Document edits;
-		if (!ReadDocument(user, edits)) {
-			return bAuthor;
+		if (!std::filesystem::is_regular_file(user, ec) || !ReadDocument(user, edits)) {
+			return true;
 		}
 		a_outSource = Parsing::ConfigSource::kUser;
 		if (!edits.HasMember("userEdits")) {
 			a_out.Swap(edits);
+			a_outEdited.reset();
 			return true;
 		}
+		a_outEdited = EditedItems(edits);
 		return ApplyUserEdits(a_out, edits, a_mod);
 	}
 #pragma pop_macro("GetObject")
@@ -1449,12 +1472,24 @@ bool RegisteredMod::ReloadConfig()
 		MarkClean(this);
 		return false;
 	}
+	// With a user's file the author's is read on its own first; without one, the mod as read is the author's
+	const std::filesystem::path folder(_path);
+	std::error_code ec;
+	const bool bUser = std::filesystem::is_regular_file(folder / kUserFile, ec);
+	if (bUser && !ReadAuthorBaseline()) {
+		return false;
+	}
 	rapidjson::Document doc;
-	if (!ReadMod(std::filesystem::path(_path), _name, doc, source)) {
+	std::optional<std::unordered_set<std::string>> edited;
+	if (bUser ? !ReadMod(folder, _name, _authorBaseline, doc, source, edited) : !ReadDocument(folder / kAuthorFile, doc)) {
 		return false;
 	}
 	_configSource = source;
 	Parse(doc);
+	if (!bUser) {
+		TakeAuthorBaseline(*this);
+	}
+	MarkUserEdited(edited);
 	_bDirty = false;
 	MarkClean(this);
 	logger::info("storage: '{}' read from {}{}", _name, path->parent_path().string(), source == Parsing::ConfigSource::kUser ? ", with the user's edits" : "");
@@ -1466,7 +1501,8 @@ bool RegisteredMod::ReloadSubMod(SubMod* a_subMod)
 	Parsing::ConfigSource source = Parsing::ConfigSource::kAuthor;
 	const auto path = ConfigFile(source);
 	rapidjson::Document doc;
-	if (!path || !ReadMod(std::filesystem::path(_path), _name, doc, source)) {
+	std::optional<std::unordered_set<std::string>> edited;
+	if (!path || !ReadAuthorBaseline() || !ReadMod(std::filesystem::path(_path), _name, _authorBaseline, doc, source, edited)) {
 		return false;
 	}
 	auto* list = ArrayOf(doc, a_subMod->GetKind() == SubModKind::kClip ? "clips" : "modifiers");
@@ -1476,7 +1512,8 @@ bool RegisteredMod::ReloadSubMod(SubMod* a_subMod)
 	for (auto& one : list->GetArray()) {
 		if (one.IsObject() && StringOf(one, "name") == a_subMod->GetName()) {
 			a_subMod->Parse(one);
-			a_subMod->_configSource = source;
+			const bool bEdited = source == Parsing::ConfigSource::kUser && (!edited || edited->contains(EditedKey(a_subMod->GetKind(), a_subMod->GetName())));
+			a_subMod->_configSource = bEdited ? Parsing::ConfigSource::kUser : Parsing::ConfigSource::kAuthor;
 			a_subMod->SetDirtyRecursive(false);
 			if (auto* clip = dynamic_cast<Clip*>(a_subMod)) {
 				clip->GetTriggerSet()->SetDirtyRecursive(false);
@@ -1504,19 +1541,15 @@ void RegisteredMod::SaveConfig(EditMode a_editMode)
 	rapidjson::Document edits;
 	const rapidjson::Value* written = &value;
 	if (bUser) {
-		rapidjson::Document author;
-		if (!std::filesystem::is_regular_file(folder / kAuthorFile, ec) || !ReadDocument(folder / kAuthorFile, author)) {
-			author.SetObject();
+		if (!_authorBaseline.IsObject() && !ReadAuthorBaseline()) {
+			_authorBaseline.SetObject();
 		}
 		bool bAny = false;
-		edits = UserEdits(author, value, bAny);
+		edits = UserEdits(_authorBaseline, value, bAny);
 		if (!bAny) {
 			std::filesystem::remove(path, ec);
 			_configSource = Parsing::ConfigSource::kAuthor;
-			ForEachSubMod([&](SubMod* a_subMod) {
-				a_subMod->_configSource = _configSource;
-				return RE::BSVisit::BSVisitControl::kContinue;
-			});
+			MarkUserEdited(std::unordered_set<std::string>{});
 			_bDirty = false;
 			MarkClean(this);
 			logger::info("storage: '{}' is the author's as it is; no user edits kept", _name);
@@ -1535,13 +1568,51 @@ void RegisteredMod::SaveConfig(EditMode a_editMode)
 		return;
 	}
 	_configSource = bUser ? Parsing::ConfigSource::kUser : Parsing::ConfigSource::kAuthor;
-	ForEachSubMod([&](SubMod* a_subMod) {
-		a_subMod->_configSource = _configSource;
-		return RE::BSVisit::BSVisitControl::kContinue;
-	});
+	if (bUser) {
+		MarkUserEdited(EditedItems(edits));
+	} else {
+		static_cast<rapidjson::Value&>(doc).Swap(value);
+		_authorBaseline.Swap(doc);
+		MarkUserEdited(std::unordered_set<std::string>{});
+	}
 	_bDirty = false;
 	MarkClean(this);
 	logger::info("storage: '{}' saved to {}", _name, path.string());
+}
+
+bool RegisteredMod::ReadAuthorBaseline()
+{
+	const auto file = std::filesystem::path(_path) / kAuthorFile;
+	std::error_code ec;
+	if (!std::filesystem::is_regular_file(file, ec)) {
+		_authorBaseline.SetObject();
+		return true;
+	}
+	rapidjson::Document doc;
+	if (!ReadDocument(file, doc)) {
+		return false;
+	}
+	RegisteredMod author(_path, _name, ""sv, ""sv);
+	author.Parse(doc);
+	TakeAuthorBaseline(author);
+	return true;
+}
+
+void RegisteredMod::TakeAuthorBaseline(const RegisteredMod& a_from)
+{
+	rapidjson::Document baseline;
+	auto value = a_from.Serialize(baseline.GetAllocator());
+	static_cast<rapidjson::Value&>(baseline).Swap(value);
+	_authorBaseline.Swap(baseline);
+}
+
+void RegisteredMod::MarkUserEdited(const std::optional<std::unordered_set<std::string>>& a_edited)
+{
+	ForEachSubMod([&](SubMod* a_subMod) {
+		const bool bEdited = _configSource == Parsing::ConfigSource::kUser && (!a_edited || a_edited->contains(EditedKey(a_subMod->GetKind(), a_subMod->GetName())));
+		a_subMod->_configSource = bEdited ? Parsing::ConfigSource::kUser : Parsing::ConfigSource::kAuthor;
+		return RE::BSVisit::BSVisitControl::kContinue;
+	});
 }
 
 void RegisteredMod::LoadAll()

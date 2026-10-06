@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class RegisteredMod;
@@ -388,6 +389,11 @@ private:
 	void Parse(rapidjson::Value& a_value);
 	// The file it reads: user.json when there is one, else config.json; none when neither is there
 	[[nodiscard]] std::optional<std::filesystem::path> ConfigFile(Parsing::ConfigSource& a_outSource) const;
+	// config.json read through a mod of its own and written back as the baseline; false when it is there and will not read
+	bool ReadAuthorBaseline();
+	void TakeAuthorBaseline(const RegisteredMod& a_from);
+	// Each clip and modifier its source: the user's for one the user's file edits or adds, every one for a whole copy
+	void MarkUserEdited(const std::optional<std::unordered_set<std::string>>& a_edited);
 
 	std::string _name;
 	std::string _author;
@@ -395,6 +401,8 @@ private:
 	std::string _path;
 	std::vector<std::string> _requiredMods;
 	Parsing::ConfigSource _configSource = Parsing::ConfigSource::kAuthor;
+	// The author's file as this build writes it: what a user's save is told apart from
+	rapidjson::Document _authorBaseline;
 
 	mutable SharedLock _dataLock;
 	std::vector<std::unique_ptr<SubMod>> _subMods;
