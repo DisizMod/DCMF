@@ -1571,8 +1571,7 @@ void RegisteredMod::SaveConfig(EditMode a_editMode)
 	if (bUser) {
 		MarkUserEdited(EditedItems(edits));
 	} else {
-		static_cast<rapidjson::Value&>(doc).Swap(value);
-		_authorBaseline.Swap(doc);
+		TakeAuthorBaseline(*this);
 		MarkUserEdited(std::unordered_set<std::string>{});
 	}
 	_bDirty = false;
@@ -1600,9 +1599,11 @@ bool RegisteredMod::ReadAuthorBaseline()
 
 void RegisteredMod::TakeAuthorBaseline(const RegisteredMod& a_from)
 {
+	// Copied whole: a serialized key can point into the component that wrote it, which a reload or the mod read alone frees
+	rapidjson::Document scratch;
+	const auto value = a_from.Serialize(scratch.GetAllocator());
 	rapidjson::Document baseline;
-	auto value = a_from.Serialize(baseline.GetAllocator());
-	static_cast<rapidjson::Value&>(baseline).Swap(value);
+	baseline.CopyFrom(value, baseline.GetAllocator(), true);
 	_authorBaseline.Swap(baseline);
 }
 
