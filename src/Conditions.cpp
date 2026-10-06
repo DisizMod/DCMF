@@ -470,6 +470,8 @@ namespace Conditions
 		registry.AddConditionFactory("SubmergeLevel"sv, []() -> ICondition* { return new SubmergeLevelCondition(); });
 		registry.AddConditionFactory("IsCurrentPackage"sv, []() -> ICondition* { return new IsCurrentPackageCondition(); });
 		registry.AddConditionFactory("IsWornInSlotHasKeyword"sv, []() -> ICondition* { return new IsWornInSlotHasKeywordCondition(); });
+		registry.AddConditionFactory("IsWornInSlotNamed"sv, []() -> ICondition* { return new IsWornInSlotTextCondition(false); });
+		registry.AddConditionFactory("IsWornInSlotFromPlugin"sv, []() -> ICondition* { return new IsWornInSlotTextCondition(true); });
 		registry.AddConditionFactory("Scale"sv, []() -> ICondition* { return new ScaleCondition(); });
 		registry.AddConditionFactory("Height"sv, []() -> ICondition* { return new HeightCondition(); });
 		registry.AddConditionFactory("Weight"sv, []() -> ICondition* { return new WeightCondition(); });
@@ -576,7 +578,7 @@ namespace Conditions
 										"CrimeGold", "IsOverEncumbered", "IsAnimationPlaying" });
 				put(kCategories[3], { "HasMagicEffect", "HasMagicEffectWithKeyword", "MagicEffectElapsedTime", "CastingSpell", "CurrentCastingType", "CurrentDeliveryType" });
 				put(kCategories[4], { "IsEquipped", "IsEquippedType", "IsEquippedHasKeyword", "IsEquippedPower", "IsEquippedShout", "IsEquippedHasEnchantment", "IsEquippedHasEnchantmentWithKeyword",
-										"HasBoundWeaponEquipped", "IsWorn", "IsWornHasKeyword", "IsWornNamed", "IsWornFromPlugin", "IsWornInSlot", "IsWornInSlotHasKeyword", "EquippedObjectWeight", "InventoryCount", "InventoryCountHasKeyword",
+										"HasBoundWeaponEquipped", "IsWorn", "IsWornHasKeyword", "IsWornNamed", "IsWornFromPlugin", "IsWornInSlot", "IsWornInSlotHasKeyword", "IsWornInSlotNamed", "IsWornInSlotFromPlugin", "EquippedObjectWeight", "InventoryCount", "InventoryCountHasKeyword",
 										"InventoryWeight", "IsAttackTypeKeyword", "IsAttackTypeFlag" });
 				put(kCategories[5], { "IsInInterior", "IsInLocation", "LocationHasKeyword", "LocationCleared", "IsParentCell", "IsWorldSpace", "HasRefType", "CurrentWeather", "CurrentWeatherHasFlag",
 										"WindSpeed", "WindAngleDifference", "CurrentGameTime", "LightLevel", "IsAboveWater", "SubmergeLevel", "SurfaceMaterial", "IsOnStairs", "MovementSurfaceAngle",
@@ -2480,12 +2482,12 @@ namespace Conditions
 
 
 
-	IsWornFromPluginCondition::IsWornFromPluginCondition()
+	namespace
 	{
-		textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the loaded plugins.");
-		textComponent->SetAllowSpaces(true);
-		// The loaded plugins in load order, the light ones after
-		textComponent->text.SetPickerItems([] {
+		// A plugin's file name, picked from the loaded plugins in load order, the light ones after
+		void SetPluginPicker(TextConditionComponent* a_component)
+		{
+			a_component->text.SetPickerItems([] {
 			std::vector<UI::UICommon::PickerItem> out;
 			if (auto* dataHandler = RE::TESDataHandler::GetSingleton()) {
 				const auto add = [&](const RE::TESFile* const* a_files, std::size_t a_count, const char* a_group) {
@@ -2501,11 +2503,48 @@ namespace Conditions
 			}
 			return out;
 		},
-			[](std::string_view a_name) -> std::string {
-				auto* dataHandler = RE::TESDataHandler::GetSingleton();
-				const bool bLoaded = dataHandler && (dataHandler->LookupLoadedModByName(a_name) || dataHandler->LookupLoadedLightModByName(a_name));
-				return bLoaded ? std::string(a_name) : std::string{};
-			});
+				[](std::string_view a_name) -> std::string {
+					auto* dataHandler = RE::TESDataHandler::GetSingleton();
+					const bool bLoaded = dataHandler && (dataHandler->LookupLoadedModByName(a_name) || dataHandler->LookupLoadedLightModByName(a_name));
+					return bLoaded ? std::string(a_name) : std::string{};
+				});
+		}
+	}
+
+	IsWornFromPluginCondition::IsWornFromPluginCondition()
+	{
+		textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the loaded plugins.");
+		textComponent->SetAllowSpaces(true);
+		SetPluginPicker(textComponent);
+	}
+
+	IsWornInSlotTextCondition::IsWornInSlotTextCondition(bool a_bPlugin) :
+		_bPlugin(a_bPlugin)
+	{
+		slotComponent = AddComponent<NumericConditionComponent>("Slot", "The slot that should be checked.");
+		if (_bPlugin) {
+			textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the loaded plugins.");
+			SetPluginPicker(textComponent);
+		} else {
+			textComponent = AddComponent<TextConditionComponent>("Name", "The item's name, as the inventory shows it or as its form has it; whatever the case.");
+		}
+		textComponent->SetAllowSpaces(true);
+	}
+
+	void IsWornInSlotTextCondition::PostInitialize()
+	{
+		ConditionBase::PostInitialize();
+		slotComponent->value.getEnumMap = &IsWornInSlotHasKeywordCondition::GetEnumMap;
+	}
+
+	RE::BSString IsWornInSlotTextCondition::GetArgument() const
+	{
+		std::string slotName = "(Invalid)";
+		const auto& map = IsWornInSlotHasKeywordCondition::GetEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(slotComponent->GetNumericValue(nullptr))); it != map.end()) {
+			slotName = it->second;
+		}
+		return std::format("{}, {}", slotName, textComponent->GetTextValue().c_str()).data();
 	}
 
 	HasBoneCondition::HasBoneCondition()
@@ -4017,6 +4056,44 @@ namespace Conditions
 			const auto actor = ActorOf(a_refr);
 			KeywordsOf(actor ? actor->GetWornArmor(bit, true) : nullptr, a_out);
 		}, kWornInterval));
+	}
+
+	Program::Expr IsWornInSlotTextCondition::Compile(Program::Builder& a_builder) const
+	{
+		const auto slot = StaticSlot(slotComponent);
+		const auto text = std::string(textComponent->GetTextValue().c_str());
+		if (!slot || text.empty()) {
+			return a_builder.False();
+		}
+		const auto bit = static_cast<RE::BIPED_MODEL::BipedObjectSlot>(1u << *slot);
+		const auto bPlugin = _bPlugin;
+		const auto key = BuiltinResources::TextSet(std::format("dcmf.wornSlot{}.{}", bPlugin ? "Plugins" : "Names", *slot),
+			bPlugin ? "The plugin that adds what the actor wears in the slot." : "The name of what the actor wears in the slot, as its inventory shows it and as its form has it.",
+			[bit, bPlugin](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
+				auto* actor = ActorOf(a_refr);
+				auto* armor = actor ? actor->GetWornArmor(bit, true) : nullptr;
+				if (!armor) {
+					return;
+				}
+				if (bPlugin) {
+					if (const auto* file = armor->GetFile(0)) {
+						a_out.emplace_back(file->GetFilename());
+					}
+					return;
+				}
+				if (const char* name = armor->GetName(); name && *name) {
+					a_out.emplace_back(name);
+				}
+				for (const auto& [object, data] : actor->GetInventory()) {
+					if (object == armor && data.second && data.second->IsWorn()) {
+						if (const char* shown = data.second->GetDisplayName(); shown && *shown) {
+							a_out.emplace_back(shown);
+						}
+						break;
+					}
+				}
+			});
+		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(text) });
 	}
 
 	Program::Expr IsBlockingCondition::Compile(Program::Builder& a_builder) const

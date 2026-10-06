@@ -1135,10 +1135,36 @@ namespace Conditions
 		NumericConditionComponent* slotComponent;
 		KeywordConditionComponent* keywordComponent;
 
+		static const std::map<int32_t, std::string_view>& GetEnumMap();
+
+	protected:
+		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
+	};
+
+	// IsWornInSlotNamed and IsWornInSlotFromPlugin: what is worn in one slot, by its name or by the plugin that adds it
+	class IsWornInSlotTextCondition : public ConditionBase
+	{
+	public:
+		explicit IsWornInSlotTextCondition(bool a_bPlugin);
+
+		void PostInitialize() override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return _bPlugin ? "IsWornInSlotFromPlugin"sv.data() : "IsWornInSlotNamed"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override
+		{
+			return _bPlugin ? "Checks if the ref wears an item in the specified slot that a plugin adds."sv.data() : "Checks if the ref wears an item in the specified slot with the specified name."sv.data();
+		}
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 0, 0 }; }
+
+		NumericConditionComponent* slotComponent;
+		TextConditionComponent* textComponent;
+
 	protected:
 		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
 
-		static const std::map<int32_t, std::string_view>& GetEnumMap();
+		bool _bPlugin;
 	};
 
 	class ScaleCondition : public ConditionBase
