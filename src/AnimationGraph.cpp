@@ -358,6 +358,31 @@ namespace AnimationGraph
 			return std::filesystem::path("Data\\meshes") / std::filesystem::path(model).parent_path() / "animations" / "OpenAnimationReplacer";
 		}
 
+		// Whether two files hold the same bytes
+		bool SameBytes(const std::filesystem::path& a_one, const std::filesystem::path& a_other)
+		{
+			std::error_code error;
+			const auto size = std::filesystem::file_size(a_one, error);
+			if (error || std::filesystem::file_size(a_other, error) != size || error) {
+				return false;
+			}
+			std::ifstream one(a_one, std::ios::binary);
+			std::ifstream other(a_other, std::ios::binary);
+			if (!one || !other) {
+				return false;
+			}
+			std::vector<char> left(64 * 1024);
+			std::vector<char> right(64 * 1024);
+			while (one && other) {
+				one.read(left.data(), static_cast<std::streamsize>(left.size()));
+				other.read(right.data(), static_cast<std::streamsize>(right.size()));
+				if (one.gcount() != other.gcount() || !std::equal(left.begin(), left.begin() + one.gcount(), right.begin())) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		// The file an OAR replacer, "Mod / Submod" or one of its variants, plays for the animation, as the graph's list
 		// names it from the animations folder; empty when it has none
 		std::string ReplacerFile(RE::Actor* a_actor, std::string_view a_file, std::string_view a_replacer)
@@ -601,6 +626,21 @@ namespace AnimationGraph
 			const bool bMatch = bReplacer ? entry.ends_with(wanted) && (entry.size() == wanted.size() || entry[entry.size() - wanted.size() - 1] == '\\') : entry == wanted;
 			if (bMatch) {
 				return Binding{ graph, static_cast<std::uint16_t>(i) };
+			}
+		}
+		// OAR keeps one of identical files, the first submod's: the replacer's file is that entry when their bytes are equal
+		if (bReplacer) {
+			const auto own = ReplacerRoot(a_refr ? a_refr->As<RE::Actor>() : nullptr).parent_path() / wanted;
+			const auto name = std::filesystem::path(wanted).filename().string();
+			for (std::int32_t i = 0; i < static_cast<std::int32_t>(strings->animationNames.size()); ++i) {
+				const char* entry = strings->animationNames[i].c_str();
+				if (!entry) {
+					continue;
+				}
+				const auto normalized = Components::AnimationValue::Normalize(entry);
+				if (normalized.find("openanimationreplacer\\") != std::string::npos && normalized.ends_with("\\" + name) && SameBytes(own, std::filesystem::path(entry))) {
+					return Binding{ graph, static_cast<std::uint16_t>(i) };
+				}
 			}
 		}
 		return fail(bReplacer ? "The actor's graph does not list the replacer's file." : "The actor's graph does not list this file.");
