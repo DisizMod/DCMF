@@ -87,7 +87,8 @@ namespace Apply
 	struct BodyMorphShape
 	{
 		RE::NiPointer<RE::BSGeometry> geometry;
-		RE::NiPointer<RE::NiSkinPartition> partition;
+		RE::NiPointer<RE::NiSkinPartition> partition;  // as bound, never written: what the shape goes back to
+		RE::NiPointer<RE::NiSkinPartition> own;        // the shape's own copy, made at the first write SMP reads, until the next bind
 		std::shared_ptr<const std::vector<Scan::Tri::BodyTriShapeDeltas>> tri;
 		std::size_t shape = 0;  // into *tri
 		std::uint32_t vertexCount = 0;

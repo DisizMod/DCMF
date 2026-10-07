@@ -339,6 +339,17 @@ namespace Apply
 			});
 		}
 
+		// The partition the shape draws with: our copy once there is one
+		RE::NiSkinPartition* Active(const BodyMorphShape& a_shape)
+		{
+			return a_shape.own ? a_shape.own.get() : a_shape.partition.get();
+		}
+
+		RE::NiSkinInstance* SkinOf(const BodyMorphShape& a_shape)
+		{
+			return a_shape.geometry ? a_shape.geometry->GetGeometryRuntimeData().skinInstance.get() : nullptr;
+		}
+
 		// Sums the held weights into the next working copy and queues it; an empty set puts the base back
 		void WriteShape(BodyMorphShape& a_shape, const std::vector<NumberSample>& a_weights)
 		{
@@ -380,16 +391,47 @@ namespace Apply
 			}
 
 			std::scoped_lock lock(g_pendingLock);
-			g_pending.push_back({ a_shape.partition, a_shape.work[slot] });
+			g_pending.push_back({ RE::NiPointer(Active(a_shape)), a_shape.work[slot] });
 		}
 
-		// The base plus the weighted morphs into the CPU copy every partition keeps, which SMP builds its collision from
+		// The base plus the weighted morphs into the CPU copy SMP builds its collision from, in the shape's own copy of its
+		// partition, as skee does: the partition the engine built is never written, so a rebuilt shape starts clean. An
+		// empty set gives the shape its partition back
 		void WriteRaw(BodyMorphShape& a_shape, const std::vector<NumberSample>& a_weights)
 		{
+			auto* skin = SkinOf(a_shape);
+			if (a_weights.empty()) {
+				if (a_shape.own) {
+					if (skin && skin->skinPartition.get() == a_shape.own.get()) {
+						skin->skinPartition = a_shape.partition;
+						// What the GPU of the bound partition last had of ours goes back to base
+						std::scoped_lock lock(g_pendingLock);
+						g_pending.push_back({ a_shape.partition, std::make_shared<std::vector<std::uint8_t>>(a_shape.base) });
+					}
+					a_shape.own.reset();
+				}
+				return;
+			}
+			if (!a_shape.own) {
+				// The first write since the bind: a copy, swapped in only while the shape still draws with what was bound
+				if (!skin || skin->skinPartition.get() != a_shape.partition.get()) {
+					return;
+				}
+				RE::NiPointer<RE::NiObject> copy;
+				a_shape.partition->CreateDeepCopy(copy);
+				auto* own = copy ? netimmerse_cast<RE::NiSkinPartition*>(copy.get()) : nullptr;
+				if (!own) {
+					logger::error("bodymorph: '{}': its partition would not copy; SMP's copy left as it is", a_shape.geometry->name.c_str());
+					return;
+				}
+				a_shape.own = RE::NiPointer(own);
+				skin->skinPartition = a_shape.own;
+			}
 			const auto bytes = a_shape.base.size();
 			std::vector<std::uint8_t*> targets;
-			for (std::uint32_t i = 0; i < a_shape.partition->numPartitions; ++i) {
-				auto* data = a_shape.partition->partitions[i].buffData;
+			auto* partition = a_shape.own.get();
+			for (std::uint32_t i = 0; i < partition->numPartitions; ++i) {
+				auto* data = partition->partitions[i].buffData;
 				if (data && data->rawVertexData && std::ranges::find(targets, data->rawVertexData) == targets.end()) {
 					targets.push_back(data->rawVertexData);
 				}
@@ -489,7 +531,11 @@ namespace Apply
 				return;
 			}
 
-			const bool bRebind = a_data.boundGeneration != parts->generation;
+			// Bound again when the parts change, or when another plugin, skee re-applying its morphs, swapped a partition in
+			const bool bRebind = a_data.boundGeneration != parts->generation || std::ranges::any_of(a_data.shapes, [](const BodyMorphShape& a_shape) {
+				const auto* skin = SkinOf(a_shape);
+				return skin && skin->skinPartition.get() != Active(a_shape);
+			});
 			if (bRebind) {
 				// SMP's copy back to base first, so a shape that stays is bound from its base and not from our morphs
 				if (!a_data.smpApplied.empty()) {
@@ -513,6 +559,8 @@ namespace Apply
 				}
 				a_data.smpApplied = smpBody;
 				ResetSmp(actor);
+				// A copy swapped in or out draws from its own GPU buffer: the morphs uploaded to it again
+				a_data.applied.clear();
 			}
 
 			if (!bRebind && SameWeights(a_data.applied, weights)) {
