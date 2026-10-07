@@ -5677,6 +5677,10 @@ namespace UI
 		drawPatch("smpBody", "SMP: collision follows the body's morphs", Settings::bPatchSmpBodyCollision, Settings::bPatchSmpBodyCollisionChosen, Settings::bSmpInstalled, "hdtSMP64.dll found", "hdtSMP64.dll not found",
 			"SMP builds its collision from the body mesh once, when the actor is dressed, and never sees a body morph or a body preset. With this on, the body SMP collides with follows what the modifiers make of it, preset included, and SMP rebuilds the actor's physics each time that changes, keeping its bones where they are. It waits for every modifier to finish its transition first; clips and the Actor window's holds are left out, so a clip's passing shape never moves the collision. On by itself when FSMP is loaded, until you toggle it.",
 			nullptr, nullptr);
+
+		drawPatch("menuStudio", "Menu Studio: modifiers run in the inventory", Settings::bPatchMenuStudio, Settings::bPatchMenuStudioChosen, Settings::bMenuStudioInstalled, "MenuStudio.dll found", "MenuStudio.dll not found",
+			"The inventory pauses the game, and DCMF stops while the game is paused, so an item equipped or removed there changes nothing until the menu closes. Menu Studio shows the character in the inventory; with this on, DCMF keeps running while the inventory is open, so the conditions see the equip and the transitions play. Every other paused menu still stops it. On by itself when Menu Studio is loaded, until you toggle it.",
+			nullptr, nullptr);
 	}
 
 	bool UIMain::DrawSkinSet(RegisteredMod* a_registeredMod, Skins::Set* a_set, bool& a_bOutWasRenamed)

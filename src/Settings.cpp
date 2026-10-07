@@ -91,6 +91,10 @@ void Settings::ReadSettings()
 		if (bPatchSmpBodyCollisionChosen) {
 			ReadBoolSetting(ini, "Patches", "bPatchSmpBodyCollision", bPatchSmpBodyCollision);
 		}
+		ReadBoolSetting(ini, "Patches", "bPatchMenuStudioChosen", bPatchMenuStudioChosen);
+		if (bPatchMenuStudioChosen) {
+			ReadBoolSetting(ini, "Patches", "bPatchMenuStudio", bPatchMenuStudio);
+		}
 
 		// UI
 		ReadBoolSetting(ini, "UI", "bEnableUI", bEnableUI);
@@ -182,6 +186,8 @@ void Settings::WriteSettings()
 	ini.SetDoubleValue("Patches", "fPatchUbeEyeRotationStrength", fPatchUbeEyeRotationStrength);
 	ini.SetBoolValue("Patches", "bPatchSmpBodyCollisionChosen", bPatchSmpBodyCollisionChosen);
 	ini.SetBoolValue("Patches", "bPatchSmpBodyCollision", bPatchSmpBodyCollision);
+	ini.SetBoolValue("Patches", "bPatchMenuStudioChosen", bPatchMenuStudioChosen);
+	ini.SetBoolValue("Patches", "bPatchMenuStudio", bPatchMenuStudio);
 
 	// UI
 	ini.SetBoolValue("UI", "bEnableUI", bEnableUI);
@@ -233,4 +239,11 @@ void Settings::ApplyLoadOrderDefaults()
 		bPatchSmpBodyCollision = bSmpInstalled;
 	}
 	logger::info("patches: SMP {}, its body collision patch {}{}", bSmpInstalled ? "found" : "not found", bPatchSmpBodyCollision ? "on" : "off", bPatchSmpBodyCollisionChosen ? " by the user's choice" : "");
+
+	// Menu Studio's inventory: on when it is loaded, unless the user chose
+	bMenuStudioInstalled = GetModuleHandleW(L"MenuStudio.dll") != nullptr;
+	if (!bPatchMenuStudioChosen) {
+		bPatchMenuStudio = bMenuStudioInstalled;
+	}
+	logger::info("patches: Menu Studio {}, its inventory patch {}{}", bMenuStudioInstalled ? "found" : "not found", bPatchMenuStudio ? "on" : "off", bPatchMenuStudioChosen ? " by the user's choice" : "");
 }

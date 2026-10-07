@@ -59,6 +59,10 @@ struct Settings
 	static inline bool bPatchSmpBodyCollision = false;
 	static inline bool bPatchSmpBodyCollisionChosen = false;  // set by the user, kept over what the load order says
 	static inline bool bSmpInstalled = false;                 // hdtSMP64.dll loaded
+	// The tick runs on in the paused inventory, where Menu Studio shows the character
+	static inline bool bPatchMenuStudio = false;
+	static inline bool bPatchMenuStudioChosen = false;  // set by the user, kept over what the load order says
+	static inline bool bMenuStudioInstalled = false;    // MenuStudio.dll loaded
 
 	// UI
 	static inline bool bEnableUI = true;

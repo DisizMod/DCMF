@@ -125,9 +125,8 @@ namespace Scheduler
 			}
 
 			if (auto* ui = RE::UI::GetSingleton(); ui && ui->GameIsPaused()) {
-				// Menu Studio shows the character in the inventory: the tick runs on there, so an equip blends
-				static const bool bMenuStudio = GetModuleHandleW(L"MenuStudio.dll") != nullptr;
-				if (!bMenuStudio || !ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
+				// Menu Studio shows the character in the inventory: with its patch, the tick runs on there, so an equip blends
+				if (!Settings::bPatchMenuStudio || !ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
 					return "game is paused";
 				}
 			}
