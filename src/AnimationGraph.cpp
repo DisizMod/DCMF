@@ -536,6 +536,10 @@ namespace AnimationGraph
 				recent.push_back({ std::move(file), "Recently played" });
 			}
 			out.insert(out.begin(), std::make_move_iterator(recent.begin()), std::make_move_iterator(recent.end()));
+			// Each item's value its place again, the recent ones counted
+			for (std::size_t i = 0; i < out.size(); ++i) {
+				out[i].value = i;
+			}
 			return out;
 		},
 			[](std::string_view a_file) -> std::string {
