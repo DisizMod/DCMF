@@ -3,6 +3,7 @@
 #include "UI/UICommon.h"
 #include "Utils.h"
 
+#include "ConditionTypes.h"
 #include "StateData.h"
 
 #include <imgui_stdlib.h>
@@ -13,6 +14,12 @@ concept Derived = std::is_base_of_v<U, T>;
 
 template <typename T>
 concept NonAbstract = !std::is_abstract_v<T>;
+
+namespace Channels
+{
+	class Channel;
+	class IChannelComponent;
+}
 
 namespace Resources
 {
@@ -567,6 +574,45 @@ namespace Components
 	private:
 		template <typename Key, typename T>
 		bool DisplayComboBox(const std::map<Key, std::string_view>& a_enumMap, T& a_value, float a_firstColumnWidthPercent);
+	};
+
+	// A channel and what it is tested for on the actor: a number compared, anything else matched as the channel's own
+	// row picks it, a mode, a name, a form, a colour, on or off
+	class ChannelValue
+	{
+	public:
+		ChannelValue();
+		~ChannelValue();
+
+		bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent);
+
+		void Parse(const rapidjson::Value& a_value);
+		[[nodiscard]] rapidjson::Value Serialize(rapidjson::Document::AllocatorType& a_allocator);
+
+		[[nodiscard]] std::string GetArgument() const;
+		[[nodiscard]] bool IsValid() const;
+
+		// Whether the channel holds a number, compared rather than matched
+		[[nodiscard]] bool IsNumber() const;
+
+		// What a value other than a number is matched as, the actor's read the same way; empty for none
+		[[nodiscard]] std::string ExpectedKey() const;
+		[[nodiscard]] static std::string FormKey(std::uint64_t a_formID) { return std::format("{:X}", a_formID); }
+		[[nodiscard]] static std::string ColourKey(float a_red, float a_green, float a_blue)
+		{
+			return std::format("{:08X}{:08X}{:08X}", std::bit_cast<std::uint32_t>(a_red), std::bit_cast<std::uint32_t>(a_green), std::bit_cast<std::uint32_t>(a_blue));
+		}
+
+		std::string channel;  // "kind:name"
+		Conditions::ComparisonOperator comparison = Conditions::ComparisonOperator::kEqual;
+		NumericValue number;
+
+	private:
+		// A fresh row of the channel, static only, for its value
+		void MakeExpected();
+		[[nodiscard]] Channels::IChannelComponent* ExpectedComponent() const;
+
+		std::unique_ptr<Channels::Channel> _expected;
 	};
 
 	class NiPoint3Value

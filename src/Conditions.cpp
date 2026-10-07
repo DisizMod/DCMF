@@ -515,6 +515,7 @@ namespace Conditions
 		registry.AddConditionFactory("HasMorph"sv, []() -> ICondition* { return new HasMorphCondition(); });
 		registry.AddConditionFactory("HasBone"sv, []() -> ICondition* { return new HasBoneCondition(); });
 		registry.AddConditionFactory("IsAnimationPlaying"sv, []() -> ICondition* { return new IsAnimationPlayingCondition(); });
+		registry.AddConditionFactory("ChannelValue"sv, []() -> ICondition* { return new ChannelValueCondition(); });
 		registry.AddConditionFactory("IsBodyType"sv, []() -> ICondition* { return new SkinTypeCondition(Scan::SkinPart::kBody); });
 		registry.AddConditionFactory("IsHeadType"sv, []() -> ICondition* { return new SkinTypeCondition(Scan::SkinPart::kHead); });
 		registry.AddConditionFactory("IsBodyUVLayoutType"sv, []() -> ICondition* { return new UVLayoutCondition(Scan::SkinPart::kBody); });
@@ -555,7 +556,7 @@ namespace Conditions
 
 	namespace
 	{
-		constexpr std::array kCategories{ "Structure"sv, "Identity"sv, "State"sv, "Magic"sv, "Equipment and inventory"sv, "World"sv, "Target and mount"sv, "Values and packages"sv, "Other"sv };
+		constexpr std::array kCategories{ "Structure"sv, "Identity"sv, "State"sv, "Magic"sv, "Equipment and inventory"sv, "World"sv, "Target and mount"sv, "Values and packages"sv, "Channels"sv, "Other"sv };
 
 		// A plugin's conditions, listed under the plugin's name: by condition name, never removed
 		std::mutex g_pluginCategoryLock;
@@ -587,6 +588,7 @@ namespace Conditions
 				put(kCategories[6], { "HasTarget", "CurrentTargetDistance", "CurrentTargetRelationship", "CurrentTargetRelativeAngle", "CurrentTargetLineOfSight", "IsOnMount", "IsRiding",
 										"IsRidingHasKeyword", "CurrentFurniture", "CurrentFurnitureHasKeyword" });
 				put(kCategories[7], { "CompareValues", "Random", "IsQuestStageDone", "IsCurrentPackage", "CurrentPackageType" });
+				put(kCategories[8], { "ChannelValue" });
 				return out;
 			}();
 			return table;
@@ -2446,6 +2448,11 @@ namespace Conditions
 	}
 
 
+
+	ChannelValueCondition::ChannelValueCondition()
+	{
+		channelComponent = AddComponent<ChannelConditionComponent>("Channel", "The channel, and the value it is tested for.");
+	}
 
 	IsAnimationPlayingCondition::IsAnimationPlayingCondition()
 	{
@@ -4322,6 +4329,104 @@ namespace Conditions
 			}
 			return state->parts.With([&](const std::shared_ptr<const ActorState::Parts>& a_parts) { return a_parts && a_parts->morphs.contains(morph); }) ? 1.f : 0.f;
 		})));
+	}
+
+	namespace
+	{
+		// The actor's last applied values; none for an actor DCMF does not drive
+		std::shared_ptr<const ActorState::Sampled> SampledOf(RE::TESObjectREFR* a_refr)
+		{
+			const auto state = a_refr ? ActorState::Get(a_refr->GetHandle()) : nullptr;
+			return state ? state->sampled.With([](const auto& a_sampled) { return a_sampled; }) : nullptr;
+		}
+
+		template <class T>
+		const T* SampleOf(const std::vector<T>& a_samples, std::uint32_t a_index)
+		{
+			const auto it = std::ranges::find(a_samples, a_index, &T::index);
+			return it != a_samples.end() ? &*it : nullptr;
+		}
+
+		// A number channel's final value, its rest value while nothing sets it
+		float ChannelNumber(RE::TESObjectREFR* a_refr, Apply::ChannelId a_id)
+		{
+			const auto sampled = SampledOf(a_refr);
+			if (!sampled) {
+				return std::numeric_limits<float>::quiet_NaN();
+			}
+			if (const auto* sample = SampleOf(sampled->numbers[static_cast<std::size_t>(a_id.GetKind())], a_id.GetIndex())) {
+				return sample->value;
+			}
+			const auto entry = Apply::Entries::GetSingleton().Get(a_id);
+			return entry.neutral < entry.low ? entry.start : entry.neutral;
+		}
+
+		// Any other channel's final value as ChannelValue::ExpectedKey writes the wanted one; empty while nothing sets it
+		std::string ChannelKey(RE::TESObjectREFR* a_refr, Apply::ChannelId a_id)
+		{
+			const auto sampled = SampledOf(a_refr);
+			if (!sampled) {
+				return {};
+			}
+			const auto entry = Apply::Entries::GetSingleton().Get(a_id);
+			const auto kind = static_cast<std::size_t>(a_id.GetKind());
+			const auto index = a_id.GetIndex();
+			const auto* number = SampleOf(sampled->numbers[kind], index);
+			const auto text = [&]() -> std::string {
+				const auto* sample = SampleOf(sampled->texts[kind], index);
+				return sample ? sample->value : std::string{};
+			};
+			const auto reference = [&]() -> std::string {
+				const auto* sample = SampleOf(sampled->references[kind], index);
+				return sample ? Components::ChannelValue::FormKey(sample->value) : std::string{};
+			};
+			switch (entry.type) {
+			case Apply::ValueType::kMode:
+				return number && number->value >= 0.f && static_cast<std::size_t>(number->value) < entry.modes.size() ? entry.modes[static_cast<std::size_t>(number->value)] : std::string{};
+			case Apply::ValueType::kSwitch:
+				return number && number->value > 0.5f ? "on" : "off";
+			case Apply::ValueType::kColour:
+				if (const auto* sample = SampleOf(sampled->colours[kind], index)) {
+					return Components::ChannelValue::ColourKey(sample->red, sample->green, sample->blue);
+				}
+				return {};
+			case Apply::ValueType::kBlendedPick:
+				return sampled->presetName;
+			case Apply::ValueType::kText:
+				return text();
+			case Apply::ValueType::kReference:
+				return a_id.GetKind() == Apply::Kind::kSkin || a_id.GetKind() == Apply::Kind::kOverlay ? text() : reference();
+			case Apply::ValueType::kForm:
+				return reference();
+			default:
+				return {};
+			}
+		}
+	}
+
+	Program::Expr ChannelValueCondition::Compile(Program::Builder& a_builder) const
+	{
+		const auto& value = channelComponent->value;
+		const auto id = Apply::Entries::GetSingleton().Find(value.channel);
+		if (!id.IsValid()) {
+			return a_builder.False();
+		}
+		if (value.IsNumber()) {
+			const auto key = BuiltinResources::Number("dcmf.channel." + KeyOfText(value.channel), "The channel's value on the actor as DCMF last applied it.", [id](RE::TESObjectREFR* a_refr) {
+				return ChannelNumber(a_refr, id);
+			});
+			return a_builder.Compare(a_builder.Resource(key), value.comparison, a_builder.Number(value.number));
+		}
+		const auto wanted = value.ExpectedKey();
+		if (wanted.empty()) {
+			return a_builder.False();
+		}
+		const auto key = BuiltinResources::TextSet("dcmf.channelIs." + KeyOfText(value.channel), "The channel's value on the actor as DCMF last applied it.", [id](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
+			if (auto held = ChannelKey(a_refr, id); !held.empty()) {
+				a_out.push_back(std::move(held));
+			}
+		});
+		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(wanted) });
 	}
 
 	Program::Expr IsAnimationPlayingCondition::Compile(Program::Builder& a_builder) const

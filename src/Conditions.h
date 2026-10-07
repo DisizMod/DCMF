@@ -2089,6 +2089,27 @@ namespace Conditions
 		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
 	};
 
+	// ChannelValue: a channel's final value on the actor, a number compared, anything else matched
+	class ChannelValueCondition : public ConditionBase
+	{
+	public:
+		ChannelValueCondition();
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return channelComponent->GetArgument(); }
+
+		[[nodiscard]] RE::BSString GetName() const override { return "ChannelValue"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override
+		{
+			return "Checks a channel's value on the ref as DCMF last applied it, every modifier, clip, pose and the body preset in: a number compared, a mode, a name, a form, a colour or a switch matched exactly. A channel nothing sets holds its rest value if it is a number, is off if it is a switch, and matches nothing otherwise."sv.data();
+		}
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
+
+		ChannelConditionComponent* channelComponent;
+
+	protected:
+		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
+	};
+
 	class HasMorphCondition : public ConditionBase
 	{
 	public:

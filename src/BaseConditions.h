@@ -340,6 +340,25 @@ namespace Conditions
 		Components::AnimationValue value;
 	};
 
+	class ChannelConditionComponent : public ICustomConditionComponent
+	{
+	public:
+		ChannelConditionComponent(const ICondition* a_parentCondition, const char* a_name, const char* a_description = "") :
+			ICustomConditionComponent(a_parentCondition, a_name, a_description) {}
+
+		void InitializeComponent(void* a_value) override;
+		void SerializeComponent(void* a_value, void* a_allocator) override;
+
+		bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override { return value.DisplayInUI(a_bEditable, a_firstColumnWidthPercent); }
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return value.GetArgument().data(); }
+		[[nodiscard]] RE::BSString GetDefaultDescription() const override { return "A channel, and the value it is tested for."sv.data(); }
+
+		[[nodiscard]] bool IsValid() const override { return value.IsValid(); }
+
+		Components::ChannelValue value;
+	};
+
 	class BoolConditionComponent : public IBoolConditionComponent
 	{
 	public:

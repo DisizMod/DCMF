@@ -3,6 +3,9 @@
 
 #include "AnimationGraph.h"
 #include "AnimationPlay.h"
+#include "BaseConditions.h"
+#include "Channels.h"
+#include "UI/UIComboFilter.h"
 #include "RegisteredMods.h"
 #include "UI/UIManager.h"
 
@@ -881,6 +884,217 @@ namespace Components
 			out.erase(0, 11);
 		}
 		return out;
+	}
+
+	ChannelValue::ChannelValue() = default;
+	ChannelValue::~ChannelValue() = default;
+
+	bool ChannelValue::IsNumber() const
+	{
+		const auto& entries = Apply::Entries::GetSingleton();
+		const auto id = entries.Find(channel);
+		const auto type = id.IsValid() ? entries.Get(id).type : Apply::ValueType::kNumber;
+		return id.IsValid() && (type == Apply::ValueType::kNumber || type == Apply::ValueType::kSteppedNumber);
+	}
+
+	bool ChannelValue::IsValid() const
+	{
+		if (!Apply::Entries::GetSingleton().Find(channel).IsValid()) {
+			return false;
+		}
+		return IsNumber() || !ExpectedKey().empty();
+	}
+
+	void ChannelValue::MakeExpected()
+	{
+		_expected.reset();
+		if (IsNumber()) {
+			return;
+		}
+		auto made = Channels::CreateChannel(std::string_view(channel));
+		if (auto* row = dynamic_cast<Channels::Channel*>(made.get())) {
+			made.release();
+			_expected.reset(row);
+		}
+		// Static only: a draw has no single value to match
+		if (auto* reference = dynamic_cast<Channels::ReferenceChannel*>(_expected.get())) {
+			reference->value->bRandom = false;
+			reference->value->random.reset();
+		} else if (auto* part = dynamic_cast<Channels::HeadPartChannel*>(_expected.get())) {
+			part->value->bRandom = false;
+			part->value->random.reset();
+		}
+	}
+
+	Channels::IChannelComponent* ChannelValue::ExpectedComponent() const
+	{
+		auto* row = _expected.get();
+		if (auto* mode = dynamic_cast<Channels::ModeChannel*>(row)) {
+			return mode->value;
+		}
+		if (auto* reference = dynamic_cast<Channels::ReferenceChannel*>(row)) {
+			return reference->value;
+		}
+		if (auto* part = dynamic_cast<Channels::HeadPartChannel*>(row)) {
+			return part->value;
+		}
+		if (auto* form = dynamic_cast<Channels::FormChannel*>(row)) {
+			return form->value;
+		}
+		if (auto* colour = dynamic_cast<Channels::ColourChannel*>(row)) {
+			return colour->value;
+		}
+		if (auto* toggle = dynamic_cast<Channels::SwitchChannel*>(row)) {
+			return toggle->value;
+		}
+		return nullptr;
+	}
+
+	std::string ChannelValue::ExpectedKey() const
+	{
+		auto* row = _expected.get();
+		if (auto* mode = dynamic_cast<Channels::ModeChannel*>(row)) {
+			return mode->value->value;
+		}
+		if (auto* reference = dynamic_cast<Channels::ReferenceChannel*>(row)) {
+			return reference->value->value;
+		}
+		if (auto* part = dynamic_cast<Channels::HeadPartChannel*>(row)) {
+			const auto* form = part->value->form.GetValue();
+			return form ? FormKey(form->GetFormID()) : std::string{};
+		}
+		if (auto* form = dynamic_cast<Channels::FormChannel*>(row)) {
+			const auto* value = form->value->form.GetValue();
+			return value ? FormKey(value->GetFormID()) : std::string{};
+		}
+		if (auto* colour = dynamic_cast<Channels::ColourChannel*>(row)) {
+			const auto& value = colour->value->value.GetValue();
+			return ColourKey(value.red, value.green, value.blue);
+		}
+		if (auto* toggle = dynamic_cast<Channels::SwitchChannel*>(row)) {
+			return toggle->value->bValue ? "on" : "off";
+		}
+		return {};
+	}
+
+	bool ChannelValue::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
+	{
+		bool bEdited = false;
+		ImGui::PushID(this);
+
+		// The channel, any the load order has, a morph or bone the reference actor lacks greyed
+		if (a_bEditable) {
+			static UI::UIChannelComboFilter filter;
+			std::vector<UI::Info> infos;
+			for (const auto& info : filter.GetChannelInfos(UI::UIManager::GetSingleton().GetRefrToEvaluate())) {
+				if (info.category != UI::UIChannelComboFilter::kGroupCategory) {
+					infos.push_back(info);
+				}
+			}
+			int selectedItem = -1;
+			const UI::Info* currentInfo = nullptr;
+			if (const auto it = std::ranges::find_if(infos, [&](const UI::Info& a_info) { return a_info.name == channel; }); it != infos.end()) {
+				selectedItem = static_cast<int>(std::distance(infos.begin(), it));
+				currentInfo = &*it;
+			}
+			ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
+			if (filter.ComboFilter("##Channel", selectedItem, infos, currentInfo, ImGuiComboFlags_HeightLarge, [](const UI::Info& a_info, ImGuiHoveredFlags a_flags) { UI::UICommon::AddTooltip(a_info.description.data(), a_flags); })) {
+				if (selectedItem >= 0 && selectedItem < static_cast<int>(infos.size()) && infos[selectedItem].name != channel) {
+					channel = infos[selectedItem].name;
+					MakeExpected();
+					bEdited = true;
+				}
+			}
+		} else {
+			ImGui::TextUnformatted(channel.empty() ? "(none)" : channel.data());
+		}
+
+		if (IsNumber()) {
+			// A number compared, as the comparison rows are drawn
+			ImGui::Separator();
+			UI::UICommon::TextDescriptionRightAligned("Comparison");
+			if (a_bEditable) {
+				ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
+				ImGui::PushID(&comparison);
+				const auto currentEnumName = Conditions::ComparisonConditionComponent::GetOperatorString(comparison);
+				if (ImGui::BeginCombo("##Enum value", currentEnumName.data())) {
+					for (auto i = Conditions::ComparisonOperator::kEqual; i < Conditions::ComparisonOperator::kInvalid; i = static_cast<Conditions::ComparisonOperator>(static_cast<std::underlying_type_t<Conditions::ComparisonOperator>>(i) + 1)) {
+						const auto enumName = Conditions::ComparisonConditionComponent::GetOperatorString(i);
+						const bool bSelected = currentEnumName == enumName;
+						if (ImGui::Selectable(enumName.data(), bSelected) && !bSelected) {
+							comparison = i;
+							bEdited = true;
+						}
+						if (bSelected) {
+							ImGui::SetItemDefaultFocus();
+						}
+					}
+					ImGui::EndCombo();
+				}
+				ImGui::PopID();
+			} else {
+				ImGui::TextUnformatted(Conditions::ComparisonConditionComponent::GetOperatorString(comparison).data());
+			}
+			ImGui::Separator();
+			UI::UICommon::TextDescriptionRightAligned("Value");
+			bEdited |= number.DisplayInUI(a_bEditable, a_firstColumnWidthPercent);
+		} else if (auto* component = ExpectedComponent()) {
+			// Anything else as the channel's own row holds it
+			ImGui::Separator();
+			UI::UICommon::TextDescriptionRightAligned("Value");
+			bEdited |= component->DisplayInUI(a_bEditable, a_firstColumnWidthPercent);
+		}
+
+		ImGui::PopID();
+		return bEdited;
+	}
+
+	void ChannelValue::Parse(const rapidjson::Value& a_value)
+	{
+		if (!a_value.IsObject()) {
+			return;
+		}
+		if (const auto it = a_value.FindMember("channel"); it != a_value.MemberEnd() && it->value.IsString()) {
+			channel = it->value.GetString();
+		}
+		if (const auto it = a_value.FindMember("comparison"); it != a_value.MemberEnd() && it->value.IsString()) {
+			for (auto i = Conditions::ComparisonOperator::kEqual; i < Conditions::ComparisonOperator::kInvalid; i = static_cast<Conditions::ComparisonOperator>(static_cast<std::underlying_type_t<Conditions::ComparisonOperator>>(i) + 1)) {
+				if (Conditions::ComparisonConditionComponent::GetOperatorString(i) == it->value.GetString()) {
+					comparison = i;
+				}
+			}
+		}
+		if (const auto it = a_value.FindMember("number"); it != a_value.MemberEnd()) {
+			number.Parse(const_cast<rapidjson::Value&>(it->value));
+		}
+		MakeExpected();
+		if (const auto it = a_value.FindMember("value"); it != a_value.MemberEnd()) {
+			if (auto* component = ExpectedComponent()) {
+				component->Parse(it->value);
+			}
+		}
+	}
+
+	rapidjson::Value ChannelValue::Serialize(rapidjson::Document::AllocatorType& a_allocator)
+	{
+		rapidjson::Value object(rapidjson::kObjectType);
+		object.AddMember("channel", rapidjson::Value(channel.data(), static_cast<rapidjson::SizeType>(channel.size()), a_allocator), a_allocator);
+		const auto op = Conditions::ComparisonConditionComponent::GetOperatorString(comparison);
+		object.AddMember("comparison", rapidjson::Value(op.data(), static_cast<rapidjson::SizeType>(op.size()), a_allocator), a_allocator);
+		object.AddMember("number", number.Serialize(a_allocator), a_allocator);
+		if (auto* component = ExpectedComponent()) {
+			object.AddMember("value", component->Serialize(a_allocator), a_allocator);
+		}
+		return object;
+	}
+
+	std::string ChannelValue::GetArgument() const
+	{
+		if (IsNumber()) {
+			return std::format("{} {} {}", channel, Conditions::ComparisonConditionComponent::GetOperatorString(comparison), number.GetArgument());
+		}
+		const auto* component = ExpectedComponent();
+		return std::format("{} is {}", channel, component ? component->GetArgument() : std::string("(none)"));
 	}
 
 	bool NiPoint3Value::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
