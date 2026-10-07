@@ -419,6 +419,28 @@ namespace Components
 		TextValue replacer;
 	};
 
+	// What a random draw is held by: a seed, the same on every row that should draw together, and whether each
+	// activation of the clip or modifier draws again; a new seed draws again for everyone
+	class RandomSeed
+	{
+	public:
+		RandomSeed() :
+			seed(NewSeed()) {}
+
+		// Its own label on the right where the host names it no other way
+		bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent, bool a_bLabel = false);
+
+		void Parse(const rapidjson::Value& a_value);
+		[[nodiscard]] rapidjson::Value Serialize(rapidjson::Document::AllocatorType& a_allocator) const;
+
+		[[nodiscard]] std::string GetArgument() const;
+
+		[[nodiscard]] static std::uint32_t NewSeed();
+
+		std::uint32_t seed = 0;
+		bool bPerActivation = false;
+	};
+
 	class NumericValue
 	{
 	public:
@@ -427,7 +449,8 @@ namespace Components
 			kStaticValue,
 			kGlobalVariable,
 			kActorValue,
-			kFeed,  // offered only where getFeeds is set
+			kFeed,    // offered only where getFeeds is set
+			kRandom,  // offered only where bRandomOffered is set
 
 			kTotal,
 			kNone = kTotal
@@ -508,10 +531,16 @@ namespace Components
 				return "Actor Value"sv;
 			case Type::kFeed:
 				return "Feed Value"sv;
+			case Type::kRandom:
+				return "Random Value"sv;
 			}
 
 			return ""sv;
 		}
+
+		// A Random Value's: what it is held by, and the number a draw of 0 to 1 comes to between its bounds
+		[[nodiscard]] const RandomSeed& GetSeed() const { return _seed; }
+		[[nodiscard]] float RandomAt(double a_unit) const { return std::lerp(_randomLow, _randomHigh, static_cast<float>(a_unit)); }
 
 		bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent);
 
@@ -531,6 +560,9 @@ namespace Components
 		// The number feeds the host may read, by id; unset, Feed stays out of the type slider
 		std::function<std::vector<std::string>()> getFeeds = nullptr;
 
+		// Random Value in the type slider: a number drawn between two bounds, read where the draw's context is known
+		bool bRandomOffered = false;
+
 	protected:
 		Type _type = Type::kStaticValue;
 		Type _forcedType = Type::kNone;
@@ -549,6 +581,11 @@ namespace Components
 
 		// feed
 		std::string _feed;
+
+		// random
+		float _randomLow = 0.f;
+		float _randomHigh = 1.f;
+		RandomSeed _seed;
 
 		bool GetActorValue(RE::TESObjectREFR* a_refr, float& a_outValue) const;
 		bool GetActorValueBase(RE::TESObjectREFR* a_refr, float& a_outValue) const;

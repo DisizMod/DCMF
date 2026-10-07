@@ -34,8 +34,9 @@ namespace BuiltinResources
 	[[nodiscard]] std::string Form(std::string a_key, std::string_view a_description, std::function<RE::TESForm*(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor);
 	[[nodiscard]] std::string FormSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<RE::FormID>&)> a_read, float a_intervalSeconds = 0.f);
 	[[nodiscard]] std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds = 0.f);
-	// A number drawn between the two for each actor, held until the key is let go
-	void Drawn(const std::string& a_key, float a_low, float a_high);
+	// A number drawn between the two for each actor from the seed; with the seed's say, again each time a clip that
+	// resets the key loops or echoes on the actor
+	void Seeded(const std::string& a_key, float a_low, float a_high, const Components::RandomSeed& a_seed);
 	// How long the actor has stood idle, counted from when it was first read
 	[[nodiscard]] std::string IdleTime();
 	// The angle of the ground under the actor to its facing, the surface's normal smoothed by the factor

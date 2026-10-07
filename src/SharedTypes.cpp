@@ -220,6 +220,76 @@ namespace Components
 			return map;
 		}	}
 
+	std::uint32_t RandomSeed::NewSeed()
+	{
+		static std::mt19937 generator(std::random_device{}());
+		return std::uniform_int_distribution<std::uint32_t>(1, 0xFFFFFFFF)(generator);
+	}
+
+	bool RandomSeed::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent, bool a_bLabel)
+	{
+		bool bEdited = false;
+		ImGui::PushID(this);
+		if (a_bEditable) {
+			// The seed, and Reroll in the space a Pick button takes
+			const auto& style = ImGui::GetStyle();
+			const float rerollWidth = ImGui::CalcTextSize("Reroll").x + style.FramePadding.x * 2.f;
+			ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent) - rerollWidth - style.ItemInnerSpacing.x);
+			if (ImGui::InputScalar("##seed", ImGuiDataType_U32, &seed)) {
+				bEdited = true;
+			}
+			ImGui::SameLine(0.f, style.ItemInnerSpacing.x);
+			if (ImGui::Button("Reroll")) {
+				seed = NewSeed();
+				bEdited = true;
+			}
+			UI::UICommon::AddTooltip("A new seed: every actor draws again.");
+			UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
+			if (a_bLabel) {
+				ImGui::TextUnformatted("Seed");
+				ImGui::SameLine();
+			}
+			UI::UICommon::HelpMarker("What the draw is held by. Rows with the same seed draw together for an actor; copy a seed to tie two rows, Reroll to draw again for everyone.");
+			if (ImGui::Checkbox("Draw again on each activation##perActivation", &bPerActivation)) {
+				bEdited = true;
+			}
+			UI::UICommon::AddTooltip("Each time the clip or modifier activates, a clip's loop and echo included, every actor draws again. Off, an actor keeps its draw for good.");
+		} else {
+			ImGui::TextUnformatted(GetArgument().data());
+		}
+		ImGui::PopID();
+		return bEdited;
+	}
+
+	void RandomSeed::Parse(const rapidjson::Value& a_value)
+	{
+		// A seed written by hand without one is 0, the same every session
+		seed = 0;
+		bPerActivation = false;
+		if (!a_value.IsObject()) {
+			return;
+		}
+		if (const auto it = a_value.FindMember("seed"); it != a_value.MemberEnd() && it->value.IsUint()) {
+			seed = it->value.GetUint();
+		}
+		if (const auto it = a_value.FindMember("perActivation"); it != a_value.MemberEnd() && it->value.IsBool()) {
+			bPerActivation = it->value.GetBool();
+		}
+	}
+
+	rapidjson::Value RandomSeed::Serialize(rapidjson::Document::AllocatorType& a_allocator) const
+	{
+		rapidjson::Value object(rapidjson::kObjectType);
+		object.AddMember("seed", seed, a_allocator);
+		object.AddMember("perActivation", bPerActivation, a_allocator);
+		return object;
+	}
+
+	std::string RandomSeed::GetArgument() const
+	{
+		return std::format("seed {}{}", seed, bPerActivation ? ", each activation" : "");
+	}
+
 	float NumericValue::GetValue(RE::TESObjectREFR* a_refr) const
 	{
 		switch (_type) {
@@ -250,6 +320,8 @@ namespace Components
 			}
 		case Type::kFeed:
 			return Resources::GetNumber(_feed, a_refr).value_or(0.f);
+		case Type::kRandom:
+			return RandomAt(0.5);  // a draw is made where its context is known; this is its middle
 		}
 
 		return 0.f;
@@ -263,7 +335,16 @@ namespace Components
 			if (_forcedType == Type::kNone && !(HasEnumMap() && _type == Type::kStaticValue)) {
 				ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
 				ImGui::PushID(&_type);
-				if (ImGui::SliderInt("", reinterpret_cast<int*>(&_type), 0, static_cast<int>(getFeeds ? Type::kTotal : Type::kFeed) - 1, GetTypeName().data())) {
+				std::vector<Type> offered{ Type::kStaticValue, Type::kGlobalVariable, Type::kActorValue };
+				if (getFeeds) {
+					offered.push_back(Type::kFeed);
+				}
+				if (bRandomOffered) {
+					offered.push_back(Type::kRandom);
+				}
+				int at = static_cast<int>(std::ranges::find(offered, _type) - offered.begin());
+				if (ImGui::SliderInt("", &at, 0, static_cast<int>(offered.size()) - 1, GetTypeName().data()) && at >= 0 && at < static_cast<int>(offered.size())) {
+					_type = offered[at];
 					bEdited = true;
 				}
 				ImGui::PopID();
@@ -423,6 +504,22 @@ namespace Components
 					}
 					break;
 				}
+			case Type::kRandom:
+				{
+					// The bounds as the Random condition's, then what the draw is held by
+					for (auto [label, bound] : { std::pair{ "Minimum", &_randomLow }, std::pair{ "Maximum", &_randomHigh } }) {
+						ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
+						ImGui::PushID(bound);
+						if (ImGui::InputFloat("", bound, 0.f, 0.f, "%.3f")) {
+							bEdited = true;
+						}
+						ImGui::PopID();
+						UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
+						ImGui::TextUnformatted(label);
+					}
+					bEdited |= _seed.DisplayInUI(a_bEditable, a_firstColumnWidthPercent, true);
+					break;
+				}
 			}
 		} else {
 			switch (_type) {
@@ -466,6 +563,10 @@ namespace Components
 					UI::UICommon::SecondColumn(a_firstColumnWidthPercent);
 					ImGui::TextUnformatted("(Not found)");
 				}
+				break;
+			case Type::kRandom:
+				ImGui::TextUnformatted(GetArgument().data());
+				_seed.DisplayInUI(a_bEditable, a_firstColumnWidthPercent);
 				break;
 			}
 		}
@@ -520,6 +621,8 @@ namespace Components
 			}
 		case Type::kFeed:
 			return _feed.empty() ? "(no feed)" : _feed;
+		case Type::kRandom:
+			return std::format("random {:.3} to {:.3}, {}", _randomLow, _randomHigh, _seed.GetArgument());
 		}
 
 		return "(Invalid)";
@@ -537,6 +640,21 @@ namespace Components
 		if (const auto feedIt = valueObject.FindMember("feed"); feedIt != valueObject.MemberEnd() && feedIt->value.IsString()) {
 			_feed = feedIt->value.GetString();
 			SetType(Type::kFeed);
+			return;
+		}
+
+		if (const auto randomIt = valueObject.FindMember("random"); randomIt != valueObject.MemberEnd() && randomIt->value.IsObject()) {
+			const auto& random = randomIt->value;
+			if (const auto it = random.FindMember("min"); it != random.MemberEnd() && it->value.IsNumber()) {
+				_randomLow = it->value.GetFloat();
+			}
+			if (const auto it = random.FindMember("max"); it != random.MemberEnd() && it->value.IsNumber()) {
+				_randomHigh = it->value.GetFloat();
+			}
+			const auto it = random.FindMember("seed");
+			static const rapidjson::Value kNone;
+			_seed.Parse(it != random.MemberEnd() ? it->value : kNone);
+			SetType(Type::kRandom);
 			return;
 		}
 
@@ -608,6 +726,15 @@ namespace Components
 		case Type::kFeed:
 			object.AddMember("feed", rapidjson::Value(_feed.data(), static_cast<rapidjson::SizeType>(_feed.size()), a_allocator), a_allocator);
 			break;
+		case Type::kRandom:
+			{
+				rapidjson::Value random(rapidjson::kObjectType);
+				random.AddMember("min", _randomLow, a_allocator);
+				random.AddMember("max", _randomHigh, a_allocator);
+				random.AddMember("seed", _seed.Serialize(a_allocator), a_allocator);
+				object.AddMember("random", random, a_allocator);
+				break;
+			}
 		}
 
 		return object;

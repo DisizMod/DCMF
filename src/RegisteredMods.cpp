@@ -3,6 +3,7 @@
 #include "Conditions.h"
 #include "DetectedProblems.h"
 #include "Functions.h"
+#include "Migrations.h"
 #include "ModRegistry.h"
 #include "ClipPlayer.h"
 #include "Resolve.h"
@@ -1197,6 +1198,8 @@ namespace
 			if (!ReadDocument(author, a_out)) {
 				return false;
 			}
+			// The author's file in this build's form before any edit is laid over it, as the edits were made against it
+			Migrations::Apply(a_out, Migrations::VersionOf(a_out), a_mod);
 		} else {
 			a_out.SetObject();
 		}
@@ -1211,10 +1214,14 @@ namespace
 		if (!edits.HasMember("userEdits")) {
 			a_out.Swap(edits);
 			a_outEdited.reset();
+			Migrations::Apply(a_out, Migrations::VersionOf(a_out), a_mod);
 			return true;
 		}
 		a_outEdited = EditedItems(edits);
-		return ApplyUserEdits(a_out, edits, a_mod);
+		const bool bApplied = ApplyUserEdits(a_out, edits, a_mod);
+		// Then the user's edits, as old as their file
+		Migrations::Apply(a_out, Migrations::VersionOf(edits), a_mod);
+		return bApplied;
 	}
 #pragma pop_macro("GetObject")
 }
@@ -1223,6 +1230,7 @@ rapidjson::Value RegisteredMod::Serialize(rapidjson::Document::AllocatorType& a_
 {
 	using Result = RE::BSVisit::BSVisitControl;
 	rapidjson::Value object(rapidjson::kObjectType);
+	object.AddMember("dcmfVersion", Text(Migrations::CurrentVersionText(), a_allocator), a_allocator);
 	object.AddMember("name", Text(_name, a_allocator), a_allocator);
 	object.AddMember("author", Text(_author, a_allocator), a_allocator);
 	object.AddMember("description", Text(_description, a_allocator), a_allocator);
@@ -1541,7 +1549,10 @@ void RegisteredMod::SaveConfig(EditMode a_editMode)
 			author.SetObject();
 		}
 		bool bAny = false;
+		Migrations::Apply(author, Migrations::VersionOf(author), _name);
 		edits = UserEdits(author, value, bAny);
+		const auto version = Migrations::CurrentVersionText();
+		edits.AddMember("dcmfVersion", rapidjson::Value(version.data(), static_cast<rapidjson::SizeType>(version.size()), edits.GetAllocator()), edits.GetAllocator());
 		if (!bAny) {
 			std::filesystem::remove(path, ec);
 			_configSource = Parsing::ConfigSource::kAuthor;

@@ -725,9 +725,7 @@ namespace Conditions
 	public:
 		RandomCondition()
 		{
-			stateComponent = AddComponent<ConditionStateComponent>("State");
-			stateComponent->SetShouldResetOnLoopOrEcho(true);
-			stateComponent->SetAllowedDataScopes(StateDataScope::kActor | StateDataScope::kSubMod | StateDataScope::kRegisteredMod);
+			seedComponent = AddComponent<SeedConditionComponent>("Seed", "What the draw is held by: rows with the same seed draw together for an actor; with Draw again on each activation, a clip draws again on each loop and echo.");
 			minRandomComponent = AddComponent<NumericConditionComponent>("Minimum random value");
 			minRandomComponent->SetForcedType(Components::NumericValue::Type::kStaticValue);
 			maxRandomComponent = AddComponent<NumericConditionComponent>("Maximum random value");
@@ -745,7 +743,7 @@ namespace Conditions
 		[[nodiscard]] RE::BSString GetDescription() const override { return "Compares a random value with a numeric value."sv.data(); }
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 2, 3, 0 }; }
 
-		ConditionStateComponent* stateComponent;
+		SeedConditionComponent* seedComponent;
 		NumericConditionComponent* minRandomComponent;
 		NumericConditionComponent* maxRandomComponent;
 		ComparisonConditionComponent* comparisonComponent;

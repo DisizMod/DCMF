@@ -4,6 +4,11 @@
 #include "apply/Entries.h"
 
 #include <optional>
+
+namespace Components
+{
+	class RandomSeed;
+}
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -43,9 +48,6 @@ namespace Resolve
 	// A key's curve at a fraction of the way, by the transition's name: legacy's shapes, a bounce or a spring by its strength
 	[[nodiscard]] float CurveAt(std::string_view a_name, float a_u, float a_strength = 0.3f);
 
-	// A number channel's value for the actor: static, or read from a global or an actor value and mapped
-	[[nodiscard]] float NumberValue(Channels::NumberChannel* a_channel, RE::TESObjectREFR* a_refr);
-
 	// Where a random pick is drawn: the actor, the clip or modifier the channel is in, and since when it runs
 	struct PickContext
 	{
@@ -53,6 +55,13 @@ namespace Resolve
 		const SubMod* owner = nullptr;
 		float activatedAt = 0.f;
 	};
+
+	// A number channel's value for the actor: static, read from a global or an actor value and mapped, or drawn
+	[[nodiscard]] float NumberValue(Channels::NumberChannel* a_channel, RE::TESObjectREFR* a_refr, const PickContext& a_context = {});
+
+	// A draw from 0 to 1 for the actor: a hash of who it is and the seed, and with the seed's say the activation, so it
+	// holds across sessions
+	[[nodiscard]] double SeededUnit(RE::TESObjectREFR* a_refr, const Components::RandomSeed& a_seed, std::uint64_t a_activation);
 
 	// A reference row's random pick: the entry's value component drawn, null when nothing can be; nothing for a static row
 	[[nodiscard]] std::optional<const Channels::IChannelComponent*> RandomPick(Channels::Channel* a_channel, const PickContext& a_context);

@@ -117,9 +117,13 @@ namespace Resolve
 		}
 
 		// A number channel's value for the actor: static, or read from a global or an actor value and mapped
-		float NumberOf(Channels::NumberChannel* a_channel, RE::TESObjectREFR* a_refr)
+		float NumberOf(Channels::NumberChannel* a_channel, RE::TESObjectREFR* a_refr, const PickContext& a_context)
 		{
-			float value = a_channel->value->value.GetValue(a_refr);
+			const auto& number = a_channel->value->value;
+			if (number.GetType() == Components::NumericValue::Type::kRandom) {
+				return number.RandomAt(SeededUnit(a_refr, number.GetSeed(), std::bit_cast<std::uint32_t>(a_context.activatedAt)));
+			}
+			float value = number.GetValue(a_refr);
 			if (!a_channel->value->IsStatic()) {
 				const float readLow = a_channel->readLow->value.GetValue(nullptr);
 				const float readHigh = a_channel->readHigh->value.GetValue(nullptr);
@@ -347,9 +351,18 @@ namespace Resolve
 		return 1.f - inverse * inverse * inverse / 2.f;
 	}
 
-	float NumberValue(Channels::NumberChannel* a_channel, RE::TESObjectREFR* a_refr)
+	float NumberValue(Channels::NumberChannel* a_channel, RE::TESObjectREFR* a_refr, const PickContext& a_context)
 	{
-		return NumberOf(a_channel, a_refr);
+		return NumberOf(a_channel, a_refr, a_context);
+	}
+
+	double SeededUnit(RE::TESObjectREFR* a_refr, const Components::RandomSeed& a_seed, std::uint64_t a_activation)
+	{
+		auto key = std::format("{}|{:08X}", ActorKey(a_refr), a_seed.seed);
+		if (a_seed.bPerActivation) {
+			key += std::format("|{:X}", a_activation);
+		}
+		return static_cast<double>(Fnv1a(key) >> 11) * (1.0 / 9007199254740992.0);
 	}
 
 	std::optional<std::uint64_t> ReferenceValue(Channels::Channel* a_channel, const Apply::Entry& a_entry, const PickContext& a_context, bool* a_outDrewNothing)
@@ -568,9 +581,9 @@ namespace Resolve
 		if (!pick) {
 			return std::nullopt;
 		}
-		// Drawn once: the activation only counts where the scope draws again on each
+		// Drawn once: the activation only counts where the seed draws again on each
 		const DrawKey drawKey{ a_context.refr ? a_context.refr->GetFormID() : 0, a_channel, a_context.owner,
-			pick->scope == Channels::RandomValue::Scope::kActivation ? std::bit_cast<std::uint32_t>(a_context.activatedAt) : 0u };
+			pick->seed.bPerActivation ? std::bit_cast<std::uint32_t>(a_context.activatedAt) : 0u };
 		{
 			std::scoped_lock guard(g_drawsLock);
 			if (const auto it = g_draws.find(drawKey); it != g_draws.end()) {
@@ -627,31 +640,8 @@ namespace Resolve
 			if (entries.empty() || total <= 0.f) {
 				return nullptr;
 			}
-			// Drawn from a hash of who and what shares it, so a draw holds across sessions: the scope decides the sharing,
-			// the activation's time in it for one held a single activation
-			using Scope = Channels::RandomValue::Scope;
-			const std::string_view modName = mod ? mod->GetName() : ""sv;
-			const std::string_view ownerName = a_context.owner ? a_context.owner->GetName() : ""sv;
-			std::string key = ActorKey(a_context.refr);
-			switch (pick->scope) {
-			case Scope::kActivation:
-				key += std::format("|{}|{}|{}|{}", modName, ownerName, a_channel->GetName(), std::bit_cast<std::uint32_t>(a_context.activatedAt));
-				break;
-			case Scope::kChannel:
-				key += std::format("|{}|{}|{}", modName, ownerName, a_channel->GetName());
-				break;
-			case Scope::kSubMod:
-				key += std::format("|{}|{}", modName, ownerName);
-				break;
-			case Scope::kRegisteredMod:
-				key += std::format("|{}", modName);
-				break;
-			case Scope::kActor:
-			default:
-				break;
-			}
-			const double unit = static_cast<double>(Fnv1a(key) >> 11) * (1.0 / 9007199254740992.0);
-			double at = unit * total;
+			// Drawn from the actor and the seed, so a draw holds across sessions and rows of one seed draw together
+			double at = SeededUnit(a_context.refr, pick->seed, std::bit_cast<std::uint32_t>(a_context.activatedAt)) * total;
 			for (const auto& [value, weight] : entries) {
 				if (at < weight) {
 					return value;
@@ -823,7 +813,7 @@ namespace Resolve
 						WrongType(contribution.channel, "number");
 						continue;
 					}
-					const float value = NumberOf(number, a_refr);
+					const float value = NumberOf(number, a_refr, { a_refr, contribution.subMod, contribution.enteredAt });
 					// A stepped number is set at once, not blended by the transition
 					const float w = entry.type == Apply::ValueType::kSteppedNumber ? (contribution.weight > 0.f ? 1.f : 0.f) : contribution.weight;
 					switch (number->blend->mode) {

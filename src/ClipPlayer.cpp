@@ -750,7 +750,7 @@ namespace ClipPlayer
 						value = std::lerp(from, underlay, Resolve::CurveAt(entry.type == Apply::ValueType::kSteppedNumber ? "Instant" : "Ease in out", exitU));
 					} else {
 						const auto start = a_running.startNumbers.find(id.raw);
-						value = NumberAt(keys, t, start != a_running.startNumbers.end() ? start->second : underlay, underlay, a_refr).first;
+						value = NumberAt(keys, t, start != a_running.startNumbers.end() ? start->second : underlay, underlay, a_refr, { a_refr, a_running.clip, a_running.activatedAt }).first;
 					}
 					a_running.lastNumbers[id.raw] = value;
 					Put(a_out.numbers[kind], Apply::NumberSample{ id.GetIndex(), value });
@@ -856,7 +856,7 @@ namespace ClipPlayer
 		}
 	}
 
-	std::pair<float, Phase> NumberAt(const ChannelKeys& a_keys, float a_time, float a_from, float a_underlay, RE::TESObjectREFR* a_refr)
+	std::pair<float, Phase> NumberAt(const ChannelKeys& a_keys, float a_time, float a_from, float a_underlay, RE::TESObjectREFR* a_refr, const Resolve::PickContext& a_context)
 	{
 		const auto& keys = a_keys.keys;
 		if (keys.empty()) {
@@ -869,7 +869,7 @@ namespace ClipPlayer
 				WrongType(a_key.row, "number");
 				return a_underlay;
 			}
-			return Resolve::NumberValue(number, a_refr);
+			return Resolve::NumberValue(number, a_refr, a_context);
 		};
 
 		// The key reached, if any

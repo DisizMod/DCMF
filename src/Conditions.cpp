@@ -1234,7 +1234,7 @@ namespace Conditions
 	{
 		numericComponent->value.ParseLegacy(a_argument);
 		comparisonComponent->SetComparisonOperator(ComparisonOperator::kLessEqual);
-		stateComponent->SetShouldResetOnLoopOrEcho(false);
+		seedComponent->value.bPerActivation = false;
 		minRandomComponent->SetStaticValue(0.f);
 		maxRandomComponent->SetStaticValue(1.f);
 	}
@@ -1242,9 +1242,8 @@ namespace Conditions
 	RE::BSString RandomCondition::GetArgument() const
 	{
 		const auto separator = ComparisonConditionComponent::GetOperatorString(comparisonComponent->comparisonOperator);
-		const auto stateArgument = stateComponent->GetArgument();
 
-		return std::format("Random [{}, {}] {} {} | {}", minRandomComponent->value.GetArgument(), maxRandomComponent->value.GetArgument(), separator, numericComponent->value.GetArgument(), stateArgument.data()).data();
+		return std::format("Random [{}, {}] {} {} | {}", minRandomComponent->value.GetArgument(), maxRandomComponent->value.GetArgument(), separator, numericComponent->value.GetArgument(), seedComponent->value.GetArgument()).data();
 	}
 
 
@@ -3720,10 +3719,11 @@ namespace Conditions
 	{
 		const float low = Fixed(minRandomComponent);
 		const float high = Fixed(maxRandomComponent);
-		// Drawn once per actor and row, and again when the read is let go: a loop or an echo of the clip, if the row asks
-		const auto key = std::format("dcmf.random.{}.{}.{}", HexOf(reinterpret_cast<std::uintptr_t>(stateComponent)), HexOf(std::bit_cast<std::uint32_t>(low)), HexOf(std::bit_cast<std::uint32_t>(high)));
-		BuiltinResources::Drawn(key, low, high);
-		if (stateComponent->ShouldResetOnLoopOrEcho()) {
+		// Drawn per actor from the seed, and with the seed's say again on each loop or echo of the clip
+		const auto& seed = seedComponent->value;
+		const auto key = std::format("dcmf.random.{}.{}.{}.{}", HexOf(seed.seed), seed.bPerActivation ? 1 : 0, HexOf(std::bit_cast<std::uint32_t>(low)), HexOf(std::bit_cast<std::uint32_t>(high)));
+		BuiltinResources::Seeded(key, low, high, seed);
+		if (seed.bPerActivation) {
 			if (const auto* owner = a_builder.GetOwner(); owner && owner->GetKind() == SubModKind::kClip) {
 				BuiltinResources::ResetWith(owner, key);
 			}

@@ -103,7 +103,7 @@ namespace Channels
 		bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent) override { return value.DisplayInUI(a_bEditable, a_firstColumnWidthPercent); }
 
 		[[nodiscard]] std::string GetArgument() const override { return value.GetArgument(); }
-		[[nodiscard]] bool IsShown() const override { return !_value->IsStatic(); }
+		[[nodiscard]] bool IsShown() const override { return !_value->IsStatic() && _value->value.GetType() != Components::NumericValue::Type::kRandom; }
 
 		Components::NumericValue value;
 
@@ -220,33 +220,22 @@ namespace Channels
 		std::vector<std::unique_ptr<PickEntry>> entries;
 	};
 
-	// Static, the row's own value, or Random: a weighted draw among values and the mod's pools, held for a scope
-	// A channel's value drawn at random instead of set: a weighted draw among values and the mod's pools, held for a
-	// scope. Only a channel's own value has one; an entry of a draw is always a set value
+	// A channel's value drawn at random instead of set: a weighted draw among values and the mod's pools, held by its
+	// seed. Only a channel's own value has one; an entry of a draw is always a set value
 	class RandomValue
 	{
 	public:
-		// Activation, Channel and Actor our own, the clip or modifier and the mod the conditions' state data scopes
-		enum class Scope : std::uint8_t
-		{
-			kActivation,     // this channel and actor, drawn again each time the clip or modifier activates
-			kChannel,        // this channel and actor, for good
-			kSubMod,         // every random channel of the clip or modifier, for the actor
-			kRegisteredMod,  // every random channel of the mod, for the actor
-			kActor           // every random channel, for the actor
-		};
-
 		RandomValue(ValueFactory a_factory, PoolSource a_pools) :
 			factory(std::move(a_factory)), pools(std::move(a_pools)) {}
 
-		// The entries; the Static Value / Random Value slider above them is the value's own, the scope the State block's
+		// The entries; the Static Value / Random Value slider above them is the value's own, the seed the Seed row's
 		bool DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent);
 
 		void Parse(const rapidjson::Value& a_value);
 		[[nodiscard]] rapidjson::Value Serialize(rapidjson::Document::AllocatorType& a_allocator) const;
 
 		PickList list;
-		Scope scope = Scope::kChannel;
+		Components::RandomSeed seed;
 		ValueFactory factory;
 		PoolSource pools;  // the mod's pools of the channel
 	};
@@ -254,11 +243,11 @@ namespace Channels
 	// The type slider a channel's value starts with, as a numeric value's does: Static Value or Random Value
 	bool DisplayValueTypeSlider(bool& a_bRandom, float a_firstColumnWidthPercent);
 
-	// The State block of a Random Value: the scope its draw is held for, as the Random condition's state data scope
-	class RandomStateChannelComponent : public IChannelComponent
+	// The Seed row of a Random Value: what its draw is held by
+	class RandomSeedChannelComponent : public IChannelComponent
 	{
 	public:
-		RandomStateChannelComponent(std::string_view a_name, std::string_view a_description, RandomValue* a_random) :
+		RandomSeedChannelComponent(std::string_view a_name, std::string_view a_description, RandomValue* a_random) :
 			IChannelComponent(a_name, a_description), random(a_random) {}
 
 		[[nodiscard]] ChannelComponentType GetType() const override { return ChannelComponentType::kState; }
@@ -270,7 +259,7 @@ namespace Channels
 
 		[[nodiscard]] std::string GetArgument() const override;
 
-		RandomValue* random;  // the value's own, whose scope this is
+		RandomValue* random;  // the value's own, whose seed this is
 	};
 
 	class SwitchChannelComponent : public IChannelComponent

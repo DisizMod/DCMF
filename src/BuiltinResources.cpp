@@ -2,6 +2,7 @@
 
 #include "Conditions.h"
 #include "Resources.h"
+#include "Resolve.h"
 #include "Utils.h"
 
 #include <cmath>
@@ -333,11 +334,31 @@ namespace BuiltinResources
 		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::TextSet, Resources::Scope::Actor, refresh, a_intervalSeconds, [&](FunctionGatherer& a_gatherer) { a_gatherer.texts = std::move(a_read); });
 	}
 
-	void Drawn(const std::string& a_key, float a_low, float a_high)
+	namespace
 	{
-		(void)EnsureFunction(a_key, "A number drawn for each actor, held until the clip loops or echoes when the row asks.", Resources::ValueType::Number, Resources::Scope::Actor, Resources::Refresh::Invalidated, 0.f,
+		// How many times each key's clip has looped or echoed on each actor, for a draw that changes with it
+		std::mutex g_activationsLock;
+		std::unordered_map<std::string, std::unordered_map<RE::FormID, std::uint32_t>> g_activations;
+
+		std::uint32_t Activations(const std::string& a_key, RE::TESObjectREFR* a_refr)
+		{
+			std::scoped_lock guard(g_activationsLock);
+			const auto it = g_activations.find(a_key);
+			if (it == g_activations.end()) {
+				return 0;
+			}
+			const auto count = it->second.find(a_refr->GetFormID());
+			return count != it->second.end() ? count->second : 0;
+		}
+	}
+
+	void Seeded(const std::string& a_key, float a_low, float a_high, const Components::RandomSeed& a_seed)
+	{
+		(void)EnsureFunction(a_key, "A number drawn for each actor from its seed, again on each loop or echo of the clip when the seed says.", Resources::ValueType::Number, Resources::Scope::Actor, Resources::Refresh::Invalidated, 0.f,
 			[&](FunctionGatherer& a_gatherer) {
-				a_gatherer.number = [a_low, a_high](RE::TESObjectREFR* a_refr) { return a_refr ? Utils::GetRandomFloat(a_low, a_high) : kNoAnswer; };
+				a_gatherer.number = [a_low, a_high, a_seed, a_key](RE::TESObjectREFR* a_refr) {
+					return a_refr ? std::lerp(a_low, a_high, static_cast<float>(Resolve::SeededUnit(a_refr, a_seed, Activations(a_key, a_refr)))) : kNoAnswer;
+				};
 			});
 	}
 
@@ -439,6 +460,10 @@ namespace BuiltinResources
 			}
 		}
 		for (const auto& key : keys) {
+			if (a_refr) {
+				std::scoped_lock guard(g_activationsLock);
+				++g_activations[key][a_refr->GetFormID()];
+			}
 			(void)Resources::Invalidate(key, a_refr);
 		}
 	}

@@ -37,6 +37,7 @@ namespace Channels
 	{
 		value = AddComponent<NumberChannelComponent>("Value"sv, "What the channel is set to."sv, a_low, a_high, a_start);
 		value->value.getFeeds = [] { return Resources::FeedKeys(Resources::ValueType::Number); };
+		value->value.bRandomOffered = true;
 		readLow = AddComponent<BoundChannelComponent>("Read low"sv, "The lowest the read value goes."sv, 0.f, value);
 		readHigh = AddComponent<BoundChannelComponent>("Read high"sv, "The highest the read value goes."sv, 1.f, value);
 		channelLow = AddComponent<BoundChannelComponent>("Channel low"sv, "What the read low becomes on the channel."sv, a_low, value);
@@ -99,19 +100,19 @@ namespace Channels
 	ReferenceChannel::ReferenceChannel(ReferenceChannelComponent::ItemsFn a_items)
 	{
 		// Set, or drawn among entries made as the value is, once the channel knows which it is
-		value = AddComponent<ReferenceChannelComponent>("Value"sv, "What the channel is set to, typed or picked; or a draw among entries and the mod's pools, each by its weight, held for the state data scope."sv, std::move(a_items));
+		value = AddComponent<ReferenceChannelComponent>("Value"sv, "What the channel is set to, typed or picked; or a draw among entries and the mod's pools, each by its weight, held by its seed."sv, std::move(a_items));
 		value->random = std::make_unique<RandomValue>([this] { return ValueFactoryFor(GetId())(); }, PoolSource{ [this] { return PoolsOf(this); }, [this](std::string_view a_name) { return PoolEntries(this, a_name); } });
-		auto* state = AddComponent<RandomStateChannelComponent>("State"sv, "What a Random Value's draw is held for, and what shares it."sv, value->random.get());
-		state->shownWhen = [value = value] { return value->bRandom; };
+		auto* seed = AddComponent<RandomSeedChannelComponent>("Seed"sv, "What a Random Value's draw is held by: rows with the same seed draw together."sv, value->random.get());
+		seed->shownWhen = [value = value] { return value->bRandom; };
 	}
 
 	HeadPartChannel::HeadPartChannel(RE::BGSHeadPart::HeadPartType a_type)
 	{
-		value = AddComponent<HeadPartChannelComponent>("Value"sv, "The part, picked from every scanned one of the slot's type; or a draw among parts and the mod's pools, each by its weight, held for the state data scope."sv, a_type);
+		value = AddComponent<HeadPartChannelComponent>("Value"sv, "The part, picked from every scanned one of the slot's type; or a draw among parts and the mod's pools, each by its weight, held by its seed."sv, a_type);
 		value->form.getFeeds = [] { return Resources::FeedKeys(Resources::ValueType::Form); };
 		value->random = std::make_unique<RandomValue>([this] { return ValueFactoryFor(GetId())(); }, PoolSource{ [this] { return PoolsOf(this); }, [this](std::string_view a_name) { return PoolEntries(this, a_name); } });
-		auto* state = AddComponent<RandomStateChannelComponent>("State"sv, "What a Random Value's draw is held for, and what shares it."sv, value->random.get());
-		state->shownWhen = [value = value] { return value->bRandom; };
+		auto* seed = AddComponent<RandomSeedChannelComponent>("Seed"sv, "What a Random Value's draw is held by: rows with the same seed draw together."sv, value->random.get());
+		seed->shownWhen = [value = value] { return value->bRandom; };
 	}
 
 	namespace

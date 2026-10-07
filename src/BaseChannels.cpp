@@ -155,48 +155,6 @@ namespace Channels
 		return bEdited;
 	}
 
-	namespace
-	{
-		// Activation, Channel and Actor our own; the clip or modifier and the mod as the conditions' state data scopes name them
-		std::string_view ScopeName(RandomValue::Scope a_scope)
-		{
-			using Scope = RandomValue::Scope;
-			using Conditions::ConditionStateComponent;
-			switch (a_scope) {
-			case Scope::kChannel:
-				return "Channel"sv;
-			case Scope::kSubMod:
-				return ConditionStateComponent::GetStateDataScopeName(Conditions::StateDataScope::kSubMod);
-			case Scope::kRegisteredMod:
-				return ConditionStateComponent::GetStateDataScopeName(Conditions::StateDataScope::kRegisteredMod);
-			case Scope::kActor:
-				return "Actor"sv;
-			case Scope::kActivation:
-			default:
-				return "Activation"sv;
-			}
-		}
-
-		std::string_view ScopeTooltip(RandomValue::Scope a_scope)
-		{
-			using Scope = RandomValue::Scope;
-			using Conditions::ConditionStateComponent;
-			switch (a_scope) {
-			case Scope::kChannel:
-				return "The state data is unique for the combination of this actor and this channel of the clip or modifier, the same in every frame, and kept for good."sv;
-			case Scope::kSubMod:
-				return ConditionStateComponent::GetStateDataScopeTooltip(Conditions::StateDataScope::kSubMod);
-			case Scope::kRegisteredMod:
-				return ConditionStateComponent::GetStateDataScopeTooltip(Conditions::StateDataScope::kRegisteredMod);
-			case Scope::kActor:
-				return "The state data is unique for this actor, and is shared between every random channel of every clip, modifier and mod."sv;
-			case Scope::kActivation:
-			default:
-				return "The state data is unique for the combination of this actor and this channel of the clip or modifier, the same in every frame, and is drawn again each time the clip or modifier activates."sv;
-			}
-		}
-	}
-
 	bool PickList::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent, const ValueFactory& a_factory, const PoolSource* a_pools)
 	{
 		bool bEdited = false;
@@ -472,16 +430,8 @@ namespace Channels
 		if (const auto it = a_value.FindMember("entries"); it != a_value.MemberEnd()) {
 			list.Parse(it->value, factory);
 		}
-		if (const auto it = a_value.FindMember("scope"); it != a_value.MemberEnd() && it->value.IsString()) {
-			// The actor-wide scope's older name, Reference, read as Actor
-			const std::string_view name = it->value.GetString();
-			scope = name == "Reference"sv ? Scope::kActor : scope;
-			for (const auto one : { Scope::kActivation, Scope::kChannel, Scope::kSubMod, Scope::kRegisteredMod, Scope::kActor }) {
-				if (ScopeName(one) == name) {
-					scope = one;
-				}
-			}
-		}
+		// Read from a file: seed 0 until the row's Seed says otherwise, the same every session
+		seed.Parse(rapidjson::Value());
 	}
 
 	rapidjson::Value RandomValue::Serialize(rapidjson::Document::AllocatorType& a_allocator) const
@@ -499,65 +449,26 @@ namespace Channels
 		return bEdited;
 	}
 
-	void RandomStateChannelComponent::Parse(const rapidjson::Value& a_value)
+	void RandomSeedChannelComponent::Parse(const rapidjson::Value& a_value)
 	{
-		if (!random || !a_value.IsString()) {
-			return;
-		}
-		// The actor-wide scope's older name, Reference, read as Actor
-		const std::string_view name = a_value.GetString();
-		random->scope = name == "Reference"sv ? RandomValue::Scope::kActor : random->scope;
-		for (const auto one : { RandomValue::Scope::kActivation, RandomValue::Scope::kChannel, RandomValue::Scope::kSubMod, RandomValue::Scope::kRegisteredMod, RandomValue::Scope::kActor }) {
-			if (ScopeName(one) == name) {
-				random->scope = one;
-			}
+		if (random) {
+			random->seed.Parse(a_value);
 		}
 	}
 
-	rapidjson::Value RandomStateChannelComponent::Serialize(rapidjson::Document::AllocatorType& a_allocator) const
+	rapidjson::Value RandomSeedChannelComponent::Serialize(rapidjson::Document::AllocatorType& a_allocator) const
 	{
-		const auto name = ScopeName(random ? random->scope : RandomValue::Scope::kChannel);
-		return rapidjson::Value(name.data(), static_cast<rapidjson::SizeType>(name.size()), a_allocator);
+		return random ? random->seed.Serialize(a_allocator) : rapidjson::Value(rapidjson::kObjectType);
 	}
 
-	bool RandomStateChannelComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
+	bool RandomSeedChannelComponent::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent)
 	{
-		if (!random) {
-			return false;
-		}
-		using Scope = RandomValue::Scope;
-		bool bEdited = false;
-		auto& scope = random->scope;
-		// As a condition's state data scope is picked
-		if (a_bEditable) {
-			ImGui::SetNextItemWidth(UI::UICommon::FirstColumnWidth(a_firstColumnWidthPercent));
-			ImGui::PushID(&scope);
-			if (ImGui::BeginCombo("State data scope##Enum value", ScopeName(scope).data())) {
-				for (const auto one : { Scope::kActivation, Scope::kChannel, Scope::kSubMod, Scope::kRegisteredMod, Scope::kActor }) {
-					const bool bIsCurrent = one == scope;
-					if (ImGui::Selectable(ScopeName(one).data(), bIsCurrent) && !bIsCurrent) {
-						scope = one;
-						bEdited = true;
-					}
-					if (bIsCurrent) {
-						ImGui::SetItemDefaultFocus();
-					}
-					UI::UICommon::AddTooltip(ScopeTooltip(one).data());
-				}
-				ImGui::EndCombo();
-			}
-			ImGui::PopID();
-			UI::UICommon::AddTooltip(ScopeTooltip(scope).data());
-		} else {
-			ImGui::TextUnformatted(std::format("State data scope: {}", ScopeName(scope)).data());
-			UI::UICommon::AddTooltip(ScopeTooltip(scope).data());
-		}
-		return bEdited;
+		return random && random->seed.DisplayInUI(a_bEditable, a_firstColumnWidthPercent);
 	}
 
-	std::string RandomStateChannelComponent::GetArgument() const
+	std::string RandomSeedChannelComponent::GetArgument() const
 	{
-		return {};
+		return random ? random->seed.GetArgument() : std::string{};
 	}
 
 	bool DisplayValueTypeSlider(bool& a_bRandom, float a_firstColumnWidthPercent)

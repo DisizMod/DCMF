@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ActorState.h"
+#include "Resolve.h"
 
 #include <optional>
 #include <string>
@@ -113,7 +114,7 @@ namespace ClipPlayer
 	};
 
 	[[nodiscard]] ChannelKeys KeysOf(const ClipVariant& a_track, Apply::ChannelId a_id);
-	[[nodiscard]] std::pair<float, Phase> NumberAt(const ChannelKeys& a_keys, float a_time, float a_from, float a_underlay, RE::TESObjectREFR* a_refr);
+	[[nodiscard]] std::pair<float, Phase> NumberAt(const ChannelKeys& a_keys, float a_time, float a_from, float a_underlay, RE::TESObjectREFR* a_refr, const Resolve::PickContext& a_context = {});
 	[[nodiscard]] std::pair<std::optional<RE::NiColor>, Phase> ColourAt(const ChannelKeys& a_keys, float a_time, const std::optional<RE::NiColor>& a_from, const std::optional<RE::NiColor>& a_underlay);
 	[[nodiscard]] Channels::Channel* StepAt(const ChannelKeys& a_keys, float a_time);
 

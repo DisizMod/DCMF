@@ -424,6 +424,24 @@ namespace Conditions
 		val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), value.Serialize(allocator), allocator);
 	}
 
+	void SeedConditionComponent::InitializeComponent(void* a_value)
+	{
+		auto& val = *static_cast<rapidjson::Value*>(a_value);
+
+		const auto object = val.GetObj();
+		if (const auto seedIt = object.FindMember(rapidjson::StringRef(_name.data(), _name.length())); seedIt != object.MemberEnd()) {
+			value.Parse(seedIt->value);
+		}
+	}
+
+	void SeedConditionComponent::SerializeComponent(void* a_value, void* a_allocator)
+	{
+		auto& val = *static_cast<rapidjson::Value*>(a_value);
+		auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
+
+		val.AddMember(rapidjson::StringRef(_name.data(), _name.length()), value.Serialize(allocator), allocator);
+	}
+
 	void ChannelConditionComponent::InitializeComponent(void* a_value)
 	{
 		auto& val = *static_cast<rapidjson::Value*>(a_value);
