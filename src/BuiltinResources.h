@@ -45,6 +45,7 @@ namespace BuiltinResources
 	[[nodiscard]] std::string WornSlotKeywordsKey(std::uint32_t a_slot);
 	[[nodiscard]] std::string WornSlotNamesKey(std::uint32_t a_slot);
 	[[nodiscard]] std::string WornSlotPluginsKey(std::uint32_t a_slot);
+	[[nodiscard]] std::string WornSlotFormsKey(std::uint32_t a_slot);
 
 	// A resource read again for an actor when the clip loops or echoes on it, as a Random row that asks to
 	void ResetWith(const SubMod* a_clip, std::string a_key);

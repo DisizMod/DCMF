@@ -1167,6 +1167,27 @@ namespace Conditions
 		bool _bPlugin;
 	};
 
+	// IsWornInSlotForm: what is worn in one slot, by its form
+	class IsWornInSlotFormCondition : public ConditionBase
+	{
+	public:
+		IsWornInSlotFormCondition();
+
+		void PostInitialize() override;
+
+		[[nodiscard]] RE::BSString GetArgument() const override;
+
+		[[nodiscard]] RE::BSString GetName() const override { return "IsWornInSlotForm"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref wears the specified form in the specified slot."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
+
+		NumericConditionComponent* slotComponent;
+		FormConditionComponent* formComponent;
+
+	protected:
+		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
+	};
+
 	class ScaleCondition : public ConditionBase
 	{
 	public:

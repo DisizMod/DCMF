@@ -472,6 +472,7 @@ namespace Conditions
 		registry.AddConditionFactory("IsWornInSlotHasKeyword"sv, []() -> ICondition* { return new IsWornInSlotHasKeywordCondition(); });
 		registry.AddConditionFactory("IsWornInSlotNamed"sv, []() -> ICondition* { return new IsWornInSlotTextCondition(false); });
 		registry.AddConditionFactory("IsWornInSlotFromPlugin"sv, []() -> ICondition* { return new IsWornInSlotTextCondition(true); });
+		registry.AddConditionFactory("IsWornInSlotForm"sv, []() -> ICondition* { return new IsWornInSlotFormCondition(); });
 		registry.AddConditionFactory("Scale"sv, []() -> ICondition* { return new ScaleCondition(); });
 		registry.AddConditionFactory("Height"sv, []() -> ICondition* { return new HeightCondition(); });
 		registry.AddConditionFactory("Weight"sv, []() -> ICondition* { return new WeightCondition(); });
@@ -578,7 +579,7 @@ namespace Conditions
 										"CrimeGold", "IsOverEncumbered", "IsAnimationPlaying" });
 				put(kCategories[3], { "HasMagicEffect", "HasMagicEffectWithKeyword", "MagicEffectElapsedTime", "CastingSpell", "CurrentCastingType", "CurrentDeliveryType" });
 				put(kCategories[4], { "IsEquipped", "IsEquippedType", "IsEquippedHasKeyword", "IsEquippedPower", "IsEquippedShout", "IsEquippedHasEnchantment", "IsEquippedHasEnchantmentWithKeyword",
-										"HasBoundWeaponEquipped", "IsWorn", "IsWornHasKeyword", "IsWornNamed", "IsWornFromPlugin", "IsWornInSlot", "IsWornInSlotHasKeyword", "IsWornInSlotNamed", "IsWornInSlotFromPlugin", "EquippedObjectWeight", "InventoryCount", "InventoryCountHasKeyword",
+										"HasBoundWeaponEquipped", "IsWorn", "IsWornHasKeyword", "IsWornNamed", "IsWornFromPlugin", "IsWornInSlot", "IsWornInSlotHasKeyword", "IsWornInSlotNamed", "IsWornInSlotFromPlugin", "IsWornInSlotForm", "EquippedObjectWeight", "InventoryCount", "InventoryCountHasKeyword",
 										"InventoryWeight", "IsAttackTypeKeyword", "IsAttackTypeFlag" });
 				put(kCategories[5], { "IsInInterior", "IsInLocation", "LocationHasKeyword", "LocationCleared", "IsParentCell", "IsWorldSpace", "HasRefType", "CurrentWeather", "CurrentWeatherHasFlag",
 										"WindSpeed", "WindAngleDifference", "CurrentGameTime", "LightLevel", "IsAboveWater", "SubmergeLevel", "SurfaceMaterial", "IsOnStairs", "MovementSurfaceAngle",
@@ -2547,6 +2548,29 @@ namespace Conditions
 		return std::format("{}, {}", slotName, textComponent->GetTextValue().c_str()).data();
 	}
 
+	IsWornInSlotFormCondition::IsWornInSlotFormCondition()
+	{
+		slotComponent = AddComponent<NumericConditionComponent>("Slot", "The slot that should be checked.");
+		formComponent = AddComponent<FormConditionComponent>("Form", "The form that should be worn in the slot.");
+		formComponent->form.SetFormTypeFilter({ RE::FormType::Armor });
+	}
+
+	void IsWornInSlotFormCondition::PostInitialize()
+	{
+		ConditionBase::PostInitialize();
+		slotComponent->value.getEnumMap = &IsWornInSlotHasKeywordCondition::GetEnumMap;
+	}
+
+	RE::BSString IsWornInSlotFormCondition::GetArgument() const
+	{
+		std::string slotName = "(Invalid)";
+		const auto& map = IsWornInSlotHasKeywordCondition::GetEnumMap();
+		if (const auto it = map.find(static_cast<int32_t>(slotComponent->GetNumericValue(nullptr))); it != map.end()) {
+			slotName = it->second;
+		}
+		return std::format("{}, {}", slotName, formComponent->GetArgument().c_str()).data();
+	}
+
 	HasBoneCondition::HasBoneCondition()
 	{
 		textComponent = AddComponent<TextConditionComponent>("Bone name", "The node's own name, as the skeleton or mesh spells it: NPC L Thigh [LThg], L Breast01.");
@@ -4055,6 +4079,21 @@ namespace Conditions
 		return KeywordsIn(a_builder, keywordComponent->keyword, BuiltinResources::FormSet(BuiltinResources::WornSlotKeywordsKey(*slot), "The keywords of what the actor wears in the slot.", [bit](RE::TESObjectREFR* a_refr, std::vector<RE::FormID>& a_out) {
 			const auto actor = ActorOf(a_refr);
 			KeywordsOf(actor ? actor->GetWornArmor(bit, true) : nullptr, a_out);
+		}, kWornInterval));
+	}
+
+	Program::Expr IsWornInSlotFormCondition::Compile(Program::Builder& a_builder) const
+	{
+		const auto slot = StaticSlot(slotComponent);
+		if (!slot) {
+			return a_builder.False();
+		}
+		const auto bit = static_cast<RE::BIPED_MODEL::BipedObjectSlot>(1u << *slot);
+		return FormIn(a_builder, this, formComponent, BuiltinResources::FormSet(BuiltinResources::WornSlotFormsKey(*slot), "What the actor wears in the slot.", [bit](RE::TESObjectREFR* a_refr, std::vector<RE::FormID>& a_out) {
+			const auto actor = ActorOf(a_refr);
+			if (const auto* armor = actor ? actor->GetWornArmor(bit, true) : nullptr) {
+				a_out.push_back(armor->GetFormID());
+			}
 		}, kWornInterval));
 	}
 

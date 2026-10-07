@@ -203,6 +203,7 @@ namespace BuiltinResources
 						(void)Resources::Invalidate(WornSlotKeywordsKey(slot), actor);
 						(void)Resources::Invalidate(WornSlotNamesKey(slot), actor);
 						(void)Resources::Invalidate(WornSlotPluginsKey(slot), actor);
+						(void)Resources::Invalidate(WornSlotFormsKey(slot), actor);
 					}
 				}
 				return RE::BSEventNotifyControl::kContinue;
@@ -455,6 +456,11 @@ namespace BuiltinResources
 	std::string WornSlotPluginsKey(std::uint32_t a_slot)
 	{
 		return std::format("dcmf.wornSlotPlugins.{}", a_slot);
+	}
+
+	std::string WornSlotFormsKey(std::uint32_t a_slot)
+	{
+		return std::format("dcmf.wornSlotForms.{}", a_slot);
 	}
 
 	std::string ActorValueKey(const Components::NumericValue& a_value)
