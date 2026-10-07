@@ -61,10 +61,8 @@ namespace Functions
 
 		// required plugin
 		auto requiredPlugin = std::string(GetRequiredPluginName());
-		if (!requiredPlugin.empty()) {
-			rapidjson::Value requiredPluginValue(requiredPlugin.data(), static_cast<rapidjson::SizeType>(requiredPlugin.length()), allocator);
-			value.AddMember("requiredPlugin", requiredPluginValue, allocator);
-		}
+		rapidjson::Value requiredPluginValue(requiredPlugin.data(), static_cast<rapidjson::SizeType>(requiredPlugin.length()), allocator);
+		value.AddMember("requiredPlugin", requiredPluginValue, allocator);
 
 		// required version
 		REL::Version version = GetRequiredVersion();
@@ -73,19 +71,13 @@ namespace Functions
 		value.AddMember("requiredVersion", versionValue, allocator);
 
 		// disabled
-		if (_bDisabled) {
-			value.AddMember("disabled", _bDisabled, allocator);
-		}
+		value.AddMember("disabled", _bDisabled, allocator);
 
 		// essential
-		if (_essentialState != EssentialState::kEssential) {
-			value.AddMember("essential", static_cast<uint8_t>(_essentialState), allocator);
-		}
+		value.AddMember("essential", static_cast<uint8_t>(_essentialState), allocator);
 
 		// comment
-		if (!_comment.empty()) {
-			value.AddMember("comment", rapidjson::Value(_comment.data(), static_cast<rapidjson::SizeType>(_comment.length()), allocator), allocator);
-		}
+		value.AddMember("comment", rapidjson::Value(_comment.data(), static_cast<rapidjson::SizeType>(_comment.length()), allocator), allocator);
 
 		// components
 		for (auto& component : _components) {
@@ -103,10 +95,8 @@ namespace Functions
 					rapidjson::Value eventValue(trigger.event.data(), static_cast<rapidjson::SizeType>(trigger.event.length()), allocator);
 					triggerValue.AddMember("event", eventValue, allocator);
 
-					if (trigger.payload.length() > 0) {
-						rapidjson::Value payloadValue(trigger.payload.data(), static_cast<rapidjson::SizeType>(trigger.payload.length()), allocator);
-						triggerValue.AddMember("payload", payloadValue, allocator);
-					}
+					rapidjson::Value payloadValue(trigger.payload.data(), static_cast<rapidjson::SizeType>(trigger.payload.length()), allocator);
+					triggerValue.AddMember("payload", payloadValue, allocator);
 
 					triggersValue.PushBack(triggerValue, allocator);
 				}

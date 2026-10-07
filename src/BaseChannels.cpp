@@ -442,9 +442,7 @@ namespace Channels
 				one.AddMember("value", entry->value->Serialize(a_allocator), a_allocator);
 			}
 			one.AddMember("weight", entry->weight, a_allocator);
-			if (entry->bDisabled) {
-				one.AddMember("disabled", true, a_allocator);
-			}
+			one.AddMember("disabled", entry->bDisabled, a_allocator);
 			array.PushBack(one, a_allocator);
 		}
 		return array;
@@ -855,9 +853,7 @@ namespace Channels
 		auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
 
 		object.AddMember("channel", rapidjson::Value(GetName().data(), allocator), allocator);
-		if (_bDisabled) {
-			object.AddMember("disabled", true, allocator);
-		}
+		object.AddMember("disabled", _bDisabled, allocator);
 		for (const auto& component : _components) {
 			if (!component->IsShown()) {
 				continue;

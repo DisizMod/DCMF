@@ -70,10 +70,8 @@ namespace Conditions
 
 		// required plugin
 		auto requiredPlugin = std::string(GetRequiredPluginName());
-		if (!requiredPlugin.empty()) {
-			rapidjson::Value requiredPluginValue(requiredPlugin.data(), static_cast<rapidjson::SizeType>(requiredPlugin.length()), allocator);
-			value.AddMember("requiredPlugin", requiredPluginValue, allocator);
-		}
+		rapidjson::Value requiredPluginValue(requiredPlugin.data(), static_cast<rapidjson::SizeType>(requiredPlugin.length()), allocator);
+		value.AddMember("requiredPlugin", requiredPluginValue, allocator);
 
 		// required version
 		REL::Version version = GetRequiredVersion();
@@ -82,24 +80,16 @@ namespace Conditions
 		value.AddMember("requiredVersion", versionValue, allocator);
 
 		// disabled
-		if (_bDisabled) {
-			value.AddMember("disabled", _bDisabled, allocator);
-		}
+		value.AddMember("disabled", _bDisabled, allocator);
 
 		// negated
-		if (_bNegated) {
-			value.AddMember("negated", _bNegated, allocator);
-		}
+		value.AddMember("negated", _bNegated, allocator);
 
 		// essential
-		if (_essentialState != EssentialState::kEssential) {
-			value.AddMember("essential", static_cast<uint8_t>(_essentialState), allocator);
-		}
+		value.AddMember("essential", static_cast<uint8_t>(_essentialState), allocator);
 
 		// comment
-		if (!_comment.empty()) {
-			value.AddMember("comment", rapidjson::Value(_comment.data(), static_cast<rapidjson::SizeType>(_comment.length()), allocator), allocator);
-		}
+		value.AddMember("comment", rapidjson::Value(_comment.data(), static_cast<rapidjson::SizeType>(_comment.length()), allocator), allocator);
 
 		// components
 		for (auto& component : _components) {

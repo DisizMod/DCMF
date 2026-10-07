@@ -286,9 +286,7 @@ namespace Triggers
 	rapidjson::Value ModifierTriggerComponent::Serialize(rapidjson::Document::AllocatorType& a_allocator)
 	{
 		rapidjson::Value object(rapidjson::kObjectType);
-		if (!modName.empty()) {
-			object.AddMember("mod", rapidjson::Value(modName.data(), static_cast<rapidjson::SizeType>(modName.size()), a_allocator), a_allocator);
-		}
+		object.AddMember("mod", rapidjson::Value(modName.data(), static_cast<rapidjson::SizeType>(modName.size()), a_allocator), a_allocator);
 		object.AddMember("modifier", rapidjson::Value(modifierName.data(), static_cast<rapidjson::SizeType>(modifierName.size()), a_allocator), a_allocator);
 		return object;
 	}

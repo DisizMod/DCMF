@@ -141,18 +141,14 @@ namespace Overlays
 	{
 		rapidjson::Value object(rapidjson::kObjectType);
 		object.AddMember("name", rapidjson::Value(_name.data(), a_allocator), a_allocator);
-		if (!_description.empty()) {
-			object.AddMember("description", rapidjson::Value(_description.data(), a_allocator), a_allocator);
-		}
+		object.AddMember("description", rapidjson::Value(_description.data(), a_allocator), a_allocator);
 		const auto part = Scan::SkinPartName(_part);
 		object.AddMember("part", rapidjson::Value(part.data(), static_cast<rapidjson::SizeType>(part.size()), a_allocator), a_allocator);
 		rapidjson::Value overlays(rapidjson::kArrayType);
 		for (const auto& item : _items) {
 			rapidjson::Value entry(rapidjson::kObjectType);
 			entry.AddMember("name", rapidjson::Value(item.name.data(), a_allocator), a_allocator);
-			if (item.bDisabled) {
-				entry.AddMember("disabled", true, a_allocator);
-			}
+			entry.AddMember("disabled", item.bDisabled, a_allocator);
 			rapidjson::Value textures(rapidjson::kObjectType);
 			for (const auto& texture : item.textures) {
 				if (!texture.bEnabled) {
@@ -160,9 +156,7 @@ namespace Overlays
 				}
 				rapidjson::Value one(rapidjson::kObjectType);
 				one.AddMember("diffuse", rapidjson::Value(texture.diffuse.data(), a_allocator), a_allocator);
-				if (!texture.normal.empty()) {
-					one.AddMember("normal", rapidjson::Value(texture.normal.data(), a_allocator), a_allocator);
-				}
+				one.AddMember("normal", rapidjson::Value(texture.normal.data(), a_allocator), a_allocator);
 				textures.AddMember(rapidjson::Value(texture.uv.data(), a_allocator), one, a_allocator);
 			}
 			entry.AddMember("textures", textures, a_allocator);

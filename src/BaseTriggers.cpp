@@ -71,9 +71,7 @@ namespace Triggers
 			const auto name = component->GetName();
 			object.AddMember(rapidjson::StringRef(name.data(), name.length()), component->Serialize(a_allocator), a_allocator);
 		}
-		if (_bDisabled) {
-			object.AddMember("disabled", true, a_allocator);
-		}
+		object.AddMember("disabled", _bDisabled, a_allocator);
 
 		return object;
 	}

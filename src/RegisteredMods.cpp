@@ -646,19 +646,11 @@ rapidjson::Value SubMod::Serialize(rapidjson::Document::AllocatorType& a_allocat
 {
 	rapidjson::Value object(rapidjson::kObjectType);
 	object.AddMember("name", Text(_name, a_allocator), a_allocator);
-	if (!_description.empty()) {
-		object.AddMember("description", Text(_description, a_allocator), a_allocator);
-	}
+	object.AddMember("description", Text(_description, a_allocator), a_allocator);
 	object.AddMember("priority", _priority, a_allocator);
-	if (_bDisabled) {
-		object.AddMember("disabled", true, a_allocator);
-	}
-	if (_bInterruptible) {
-		object.AddMember("interruptible", true, a_allocator);
-	}
-	if (_bReplaceOnEcho) {
-		object.AddMember("replaceOnEcho", true, a_allocator);
-	}
+	object.AddMember("disabled", _bDisabled, a_allocator);
+	object.AddMember("interruptible", _bInterruptible, a_allocator);
+	object.AddMember("replaceOnEcho", _bReplaceOnEcho, a_allocator);
 	object.AddMember("conditions", _conditionSet->Serialize(a_allocator), a_allocator);
 	for (const auto& [type, key] : kFunctionSets) {
 		if (auto* set = GetFunctionSet(type); set && !set->IsEmpty()) {
@@ -747,12 +739,8 @@ rapidjson::Value Clip::Serialize(rapidjson::Document::AllocatorType& a_allocator
 	auto object = SubMod::Serialize(a_allocator);
 	object.AddMember("triggers", _triggerSet->Serialize(a_allocator), a_allocator);
 	object.AddMember("claims", GetChannelSet()->Serialize(a_allocator), a_allocator);
-	if (_bStopWhenConditionsFail) {
-		object.AddMember("stopWhenConditionsFail", true, a_allocator);
-	}
-	if (_bApplyExitOnInterrupt) {
-		object.AddMember("applyExitOnInterrupt", true, a_allocator);
-	}
+	object.AddMember("stopWhenConditionsFail", _bStopWhenConditionsFail, a_allocator);
+	object.AddMember("applyExitOnInterrupt", _bApplyExitOnInterrupt, a_allocator);
 	if (_bCustomExitTime) {
 		object.AddMember("customExitTime", _customExitTime, a_allocator);
 	}
@@ -764,12 +752,8 @@ rapidjson::Value Clip::Serialize(rapidjson::Document::AllocatorType& a_allocator
 		rapidjson::Value one(rapidjson::kObjectType);
 		one.AddMember("name", Text(_tracks[i].name, a_allocator), a_allocator);
 		if (const auto* variant = variants.GetVariant(i)) {
-			if (variant->IsDisabled()) {
-				one.AddMember("disabled", true, a_allocator);
-			}
-			if (variant->ShouldPlayOnce()) {
-				one.AddMember("playOnce", true, a_allocator);
-			}
+			one.AddMember("disabled", variant->IsDisabled(), a_allocator);
+			one.AddMember("playOnce", variant->ShouldPlayOnce(), a_allocator);
 			one.AddMember("weight", variant->GetWeight(), a_allocator);
 			one.AddMember("order", variant->GetOrder(), a_allocator);
 		}
@@ -1241,24 +1225,18 @@ rapidjson::Value RegisteredMod::Serialize(rapidjson::Document::AllocatorType& a_
 	rapidjson::Value object(rapidjson::kObjectType);
 	object.AddMember("name", Text(_name, a_allocator), a_allocator);
 	object.AddMember("author", Text(_author, a_allocator), a_allocator);
-	if (!_description.empty()) {
-		object.AddMember("description", Text(_description, a_allocator), a_allocator);
+	object.AddMember("description", Text(_description, a_allocator), a_allocator);
+	rapidjson::Value required(rapidjson::kArrayType);
+	for (const auto& mod : _requiredMods) {
+		required.PushBack(Text(mod, a_allocator), a_allocator);
 	}
-	if (!_requiredMods.empty()) {
-		rapidjson::Value required(rapidjson::kArrayType);
-		for (const auto& mod : _requiredMods) {
-			required.PushBack(Text(mod, a_allocator), a_allocator);
-		}
-		object.AddMember("requiredMods", required, a_allocator);
-	}
+	object.AddMember("requiredMods", required, a_allocator);
 
 	rapidjson::Value conditionPresets(rapidjson::kArrayType);
 	ForEachConditionPreset([&](Conditions::ConditionPreset* a_preset) {
 		rapidjson::Value one(rapidjson::kObjectType);
 		one.AddMember("name", Text(a_preset->GetName(), a_allocator), a_allocator);
-		if (!a_preset->GetDescription().empty()) {
-			one.AddMember("description", Text(a_preset->GetDescription(), a_allocator), a_allocator);
-		}
+		one.AddMember("description", Text(a_preset->GetDescription(), a_allocator), a_allocator);
 		one.AddMember("conditions", a_preset->Serialize(a_allocator), a_allocator);
 		conditionPresets.PushBack(one, a_allocator);
 		return Result::kContinue;
@@ -1269,9 +1247,7 @@ rapidjson::Value RegisteredMod::Serialize(rapidjson::Document::AllocatorType& a_
 	ForEachTriggerPreset([&](Triggers::TriggerPreset* a_preset) {
 		rapidjson::Value one(rapidjson::kObjectType);
 		one.AddMember("name", Text(a_preset->GetName(), a_allocator), a_allocator);
-		if (!a_preset->GetDescription().empty()) {
-			one.AddMember("description", Text(a_preset->GetDescription(), a_allocator), a_allocator);
-		}
+		one.AddMember("description", Text(a_preset->GetDescription(), a_allocator), a_allocator);
 		one.AddMember("triggers", a_preset->Serialize(a_allocator), a_allocator);
 		triggerPresets.PushBack(one, a_allocator);
 		return Result::kContinue;
@@ -1282,9 +1258,7 @@ rapidjson::Value RegisteredMod::Serialize(rapidjson::Document::AllocatorType& a_
 	ForEachReferencePool([&](ReferencePool* a_pool) {
 		rapidjson::Value one(rapidjson::kObjectType);
 		one.AddMember("name", Text(a_pool->GetName(), a_allocator), a_allocator);
-		if (!a_pool->GetDescription().empty()) {
-			one.AddMember("description", Text(a_pool->GetDescription(), a_allocator), a_allocator);
-		}
+		one.AddMember("description", Text(a_pool->GetDescription(), a_allocator), a_allocator);
 		one.AddMember("channel", Text(a_pool->GetChannel(), a_allocator), a_allocator);
 		one.AddMember("entries", a_pool->entries.Serialize(a_allocator), a_allocator);
 		referencePools.PushBack(one, a_allocator);

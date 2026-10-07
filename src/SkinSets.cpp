@@ -96,12 +96,8 @@ namespace Skins
 	{
 		rapidjson::Value object(rapidjson::kObjectType);
 		object.AddMember("name", rapidjson::Value(_name.data(), a_allocator), a_allocator);
-		if (!_description.empty()) {
-			object.AddMember("description", rapidjson::Value(_description.data(), a_allocator), a_allocator);
-		}
-		if (_bDisabled) {
-			object.AddMember("disabled", true, a_allocator);
-		}
+		object.AddMember("description", rapidjson::Value(_description.data(), a_allocator), a_allocator);
+		object.AddMember("disabled", _bDisabled, a_allocator);
 		rapidjson::Value textures(rapidjson::kObjectType);
 		for (std::uint8_t p = 0; p < static_cast<std::uint8_t>(Scan::SkinPart::kTotal); ++p) {
 			const auto& part = _textures[p];

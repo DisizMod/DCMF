@@ -131,7 +131,7 @@ namespace Conditions
 			bool bHasRequiredPlugin = false;
 			std::string requiredPluginName;
 			if (const auto requiredPluginIt = object.FindMember("requiredPlugin"); requiredPluginIt != object.MemberEnd() && requiredPluginIt->value.IsString()) {
-				bHasRequiredPlugin = true;
+				bHasRequiredPlugin = requiredPluginIt->value.GetStringLength() > 0;
 				requiredPluginName = requiredPluginIt->value.GetString();
 			}
 
