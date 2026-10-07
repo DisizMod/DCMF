@@ -68,7 +68,7 @@ namespace Functions
 
 		// required version
 		REL::Version version = GetRequiredVersion();
-		auto versionString = version.string("."sv);
+		auto versionString = std::format("{}.{}.{}", version.major(), version.minor(), version.patch());
 		rapidjson::Value versionValue(versionString.data(), static_cast<rapidjson::SizeType>(versionString.length()), allocator);
 		value.AddMember("requiredVersion", versionValue, allocator);
 

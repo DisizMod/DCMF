@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <fstream>
 #include <mutex>
 #include <ranges>
@@ -952,6 +953,27 @@ namespace
 		return std::format("{:016X}", std::hash<std::string_view>{}(std::string_view(buffer.GetString(), buffer.GetSize())));
 	}
 
+	// Each number as the shortest text that reads back as the same float: one typed as 0.59 is written 0.59
+	void ShortestFloats(rapidjson::Value& a_value)
+	{
+		if (a_value.IsObject()) {
+			for (auto& member : a_value.GetObject()) {
+				ShortestFloats(member.value);
+			}
+		} else if (a_value.IsArray()) {
+			for (auto& item : a_value.GetArray()) {
+				ShortestFloats(item);
+			}
+		} else if (a_value.IsDouble()) {
+			char text[32];
+			const auto written = std::to_chars(text, text + sizeof(text), static_cast<float>(a_value.GetDouble()));
+			double shortest = 0.0;
+			if (written.ec == std::errc{} && std::from_chars(text, written.ptr, shortest).ec == std::errc{}) {
+				a_value.SetDouble(shortest);
+			}
+		}
+	}
+
 	rapidjson::Value Key(std::string_view a_key, rapidjson::Document::AllocatorType& a_allocator)
 	{
 		return rapidjson::Value(a_key.data(), static_cast<rapidjson::SizeType>(a_key.size()), a_allocator);
@@ -1176,22 +1198,30 @@ namespace
 		return out;
 	}
 
-	// The mod as it is read: the author's as this build writes it, with the user's edits laid over it, and what they edit.
-	// A user file from before edits were kept apart is a whole copy, read as it is and made edits only when next saved
-	bool ReadMod(const std::filesystem::path& a_folder, std::string_view a_mod, const rapidjson::Value& a_author, rapidjson::Document& a_out, Parsing::ConfigSource& a_outSource, std::optional<std::unordered_set<std::string>>& a_outEdited)
+	// The mod's file as it is read: the author's, with the user's edits laid over it, and what they edit. A user file from
+	// before edits were kept apart is a whole copy, read as it is and made edits only when next saved
+	bool ReadMod(const std::filesystem::path& a_folder, std::string_view a_mod, rapidjson::Document& a_out, Parsing::ConfigSource& a_outSource, std::optional<std::unordered_set<std::string>>& a_outEdited)
 	{
-		if (a_author.IsObject()) {
-			a_out.CopyFrom(a_author, a_out.GetAllocator());
+		std::error_code ec;
+		const auto author = a_folder / kAuthorFile;
+		const auto user = a_folder / kUserFile;
+		const bool bAuthor = std::filesystem::is_regular_file(author, ec);
+		const bool bUser = std::filesystem::is_regular_file(user, ec);
+		a_outSource = Parsing::ConfigSource::kAuthor;
+		a_outEdited.emplace();
+		if (bAuthor) {
+			if (!ReadDocument(author, a_out)) {
+				return false;
+			}
 		} else {
 			a_out.SetObject();
 		}
-		a_outSource = Parsing::ConfigSource::kAuthor;
-		a_outEdited.emplace();
-		std::error_code ec;
-		const auto user = a_folder / kUserFile;
+		if (!bUser) {
+			return bAuthor;
+		}
 		rapidjson::Document edits;
-		if (!std::filesystem::is_regular_file(user, ec) || !ReadDocument(user, edits)) {
-			return true;
+		if (!ReadDocument(user, edits)) {
+			return bAuthor;
 		}
 		a_outSource = Parsing::ConfigSource::kUser;
 		if (!edits.HasMember("userEdits")) {
@@ -1472,23 +1502,13 @@ bool RegisteredMod::ReloadConfig()
 		MarkClean(this);
 		return false;
 	}
-	// With a user's file the author's is read on its own first; without one, the mod as read is the author's
-	const std::filesystem::path folder(_path);
-	std::error_code ec;
-	const bool bUser = std::filesystem::is_regular_file(folder / kUserFile, ec);
-	if (bUser && !ReadAuthorBaseline()) {
-		return false;
-	}
 	rapidjson::Document doc;
 	std::optional<std::unordered_set<std::string>> edited;
-	if (bUser ? !ReadMod(folder, _name, _authorBaseline, doc, source, edited) : !ReadDocument(folder / kAuthorFile, doc)) {
+	if (!ReadMod(std::filesystem::path(_path), _name, doc, source, edited)) {
 		return false;
 	}
 	_configSource = source;
 	Parse(doc);
-	if (!bUser) {
-		TakeAuthorBaseline(*this);
-	}
 	MarkUserEdited(edited);
 	_bDirty = false;
 	MarkClean(this);
@@ -1502,7 +1522,7 @@ bool RegisteredMod::ReloadSubMod(SubMod* a_subMod)
 	const auto path = ConfigFile(source);
 	rapidjson::Document doc;
 	std::optional<std::unordered_set<std::string>> edited;
-	if (!path || !ReadAuthorBaseline() || !ReadMod(std::filesystem::path(_path), _name, _authorBaseline, doc, source, edited)) {
+	if (!path || !ReadMod(std::filesystem::path(_path), _name, doc, source, edited)) {
 		return false;
 	}
 	auto* list = ArrayOf(doc, a_subMod->GetKind() == SubModKind::kClip ? "clips" : "modifiers");
@@ -1537,15 +1557,17 @@ void RegisteredMod::SaveConfig(EditMode a_editMode)
 
 	rapidjson::Document doc(rapidjson::kObjectType);
 	rapidjson::Value value = Serialize(doc.GetAllocator());
+	ShortestFloats(value);
 	// The user's file is what differs from the author's: nothing differing, none
 	rapidjson::Document edits;
 	const rapidjson::Value* written = &value;
 	if (bUser) {
-		if (!_authorBaseline.IsObject() && !ReadAuthorBaseline()) {
-			_authorBaseline.SetObject();
+		rapidjson::Document author;
+		if (!std::filesystem::is_regular_file(folder / kAuthorFile, ec) || !ReadDocument(folder / kAuthorFile, author)) {
+			author.SetObject();
 		}
 		bool bAny = false;
-		edits = UserEdits(_authorBaseline, value, bAny);
+		edits = UserEdits(author, value, bAny);
 		if (!bAny) {
 			std::filesystem::remove(path, ec);
 			_configSource = Parsing::ConfigSource::kAuthor;
@@ -1571,40 +1593,11 @@ void RegisteredMod::SaveConfig(EditMode a_editMode)
 	if (bUser) {
 		MarkUserEdited(EditedItems(edits));
 	} else {
-		TakeAuthorBaseline(*this);
 		MarkUserEdited(std::unordered_set<std::string>{});
 	}
 	_bDirty = false;
 	MarkClean(this);
 	logger::info("storage: '{}' saved to {}", _name, path.string());
-}
-
-bool RegisteredMod::ReadAuthorBaseline()
-{
-	const auto file = std::filesystem::path(_path) / kAuthorFile;
-	std::error_code ec;
-	if (!std::filesystem::is_regular_file(file, ec)) {
-		_authorBaseline.SetObject();
-		return true;
-	}
-	rapidjson::Document doc;
-	if (!ReadDocument(file, doc)) {
-		return false;
-	}
-	RegisteredMod author(_path, _name, ""sv, ""sv);
-	author.Parse(doc);
-	TakeAuthorBaseline(author);
-	return true;
-}
-
-void RegisteredMod::TakeAuthorBaseline(const RegisteredMod& a_from)
-{
-	// Copied whole: a serialized key can point into the component that wrote it, which a reload or the mod read alone frees
-	rapidjson::Document scratch;
-	const auto value = a_from.Serialize(scratch.GetAllocator());
-	rapidjson::Document baseline;
-	baseline.CopyFrom(value, baseline.GetAllocator(), true);
-	_authorBaseline.Swap(baseline);
 }
 
 void RegisteredMod::MarkUserEdited(const std::optional<std::unordered_set<std::string>>& a_edited)
