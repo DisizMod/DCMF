@@ -399,7 +399,7 @@ namespace AnimationGraph
 						}
 					}
 					if (!found.empty()) {
-						return Components::AnimationValue::Normalize(std::filesystem::relative(found, root.parent_path(), error).string());
+						return Components::AnimationValue::Normalize(found.lexically_relative(root.parent_path()).string());
 					}
 				}
 			}
