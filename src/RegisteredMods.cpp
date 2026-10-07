@@ -197,7 +197,15 @@ rapidjson::Value Keyframe::Serialize(rapidjson::Document::AllocatorType& a_alloc
 	if (bHold) {
 		object.AddMember("hold", holdTime, a_allocator);
 	}
-	object.AddMember("channels", channels->Serialize(a_allocator), a_allocator);
+	// The rows this frame keys; a claim it leaves unset is made again from the claims when the clip is read
+	auto rows = channels->Serialize(a_allocator);
+	if (rows.IsArray()) {
+		for (auto it = rows.Begin(); it != rows.End();) {
+			const auto disabled = it->IsObject() ? it->FindMember("disabled") : it->MemberEnd();
+			it = it->IsObject() && disabled != it->MemberEnd() && disabled->value.IsBool() && disabled->value.GetBool() ? rows.Erase(it) : it + 1;
+		}
+	}
+	object.AddMember("channels", rows, a_allocator);
 	if (functions && !functions->IsEmpty()) {
 		object.AddMember("functions", functions->Serialize(a_allocator), a_allocator);
 	}
