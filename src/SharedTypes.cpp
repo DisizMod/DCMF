@@ -1,7 +1,10 @@
 #include "SharedTypes.h"
 #include "Resources.h"
 
+#include "AnimationGraph.h"
+#include "AnimationPlay.h"
 #include "RegisteredMods.h"
+#include "UI/UIManager.h"
 
 namespace Components
 {
@@ -787,6 +790,40 @@ namespace Components
 		ImGui::TextUnformatted("OAR replacer");
 		ImGui::SameLine();
 		UI::UICommon::HelpMarker("Only while the file is played as this Open Animation Replacer submod. Unticked, the file matches however it is played.");
+		// Play on the reference actor, right aligned: whether its graph lists the file asked again only when the pick changes
+		if (auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate(); refr && refr->As<RE::Actor>()) {
+			auto* actor = refr->As<RE::Actor>();
+			struct Checked
+			{
+				RE::FormID actor = 0;
+				std::string pick;
+				std::string why;
+			};
+			static std::unordered_map<const AnimationValue*, Checked> checked;
+			auto& check = checked[this];
+			if (const auto pick = GetArgument(); check.actor != actor->GetFormID() || check.pick != pick) {
+				check = { actor->GetFormID(), pick, {} };
+				(void)AnimationGraph::BindingOf(actor, *this, &check.why);
+			}
+			const bool bPlaying = AnimationPlay::IsPlaying(actor);
+			const bool bPlayable = bPlaying || check.why.empty();
+			const char* label = bPlaying ? "Stop" : "Play";
+			const auto& style = ImGui::GetStyle();
+			ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(label).x - style.FramePadding.x * 2 - style.ItemSpacing.x);
+			ImGui::BeginDisabled(!bPlayable);
+			if (ImGui::SmallButton(label)) {
+				if (bPlaying) {
+					AnimationPlay::Stop(actor);
+				} else if (!AnimationPlay::Play(actor, *this, &check.why)) {
+					logger::warn("animations: '{}' cannot play on {:08X}: {}", GetArgument(), actor->GetFormID(), check.why);
+				}
+			}
+			ImGui::EndDisabled();
+			UI::UICommon::AddTooltip(!bPlayable ? check.why.c_str() :
+			                         bPlaying   ? "Stops it; the graph's own pose comes back." :
+			                                      "Plays it once on the reference actor over whatever its graph does, the way Open Animation Replacer previews one; OnAnimationStart and OnAnimationEnd fire for it. What the graph attaches to the clip, its sounds and held objects, does not run.",
+				ImGuiHoveredFlags_AllowWhenDisabled | ImGuiHoveredFlags_DelayShort);
+		}
 		ImGui::PopID();
 		if (bReplacer && replacer.DisplayInUI(a_bEditable, a_firstColumnWidthPercent)) {
 			bEdited = true;

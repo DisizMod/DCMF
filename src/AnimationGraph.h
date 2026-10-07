@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -33,4 +34,21 @@ namespace AnimationGraph
 
 	// The event name picker, over the reference actor's graph
 	void SetEventPicker(Components::TextValue& a_value);
+
+	// Main thread: the graph the ref animates with now
+	[[nodiscard]] RE::BShkbAnimationGraph* GraphOn(RE::TESObjectREFR* a_refr);
+
+	// A file's place in a graph's animation list
+	struct Binding
+	{
+		RE::BShkbAnimationGraph* graph = nullptr;
+		std::uint16_t index = 0;
+	};
+
+	// Main thread: where the ref's graph lists the value's file, or its OAR replacer's own file; why not, when nowhere
+	[[nodiscard]] std::optional<Binding> BindingOf(RE::TESObjectREFR* a_refr, const Components::AnimationValue& a_value, std::string* a_outWhy = nullptr);
+
+	// Behavior threads: a clip played outside the graph, started and ended as a graph's own clip is
+	void Started(const RE::hkbContext& a_context, const void* a_clip, std::string a_file, std::string a_replacer);
+	void Ended(const RE::hkbContext& a_context, const void* a_clip);
 }

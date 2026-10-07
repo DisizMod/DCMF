@@ -17,6 +17,7 @@ add_commonlibsse_plugin(DCMF
     RegisteredMods.cpp
     Actors.cpp
     AnimationGraph.cpp
+    AnimationPlay.cpp
     ActorState.cpp
     BodyTypes.cpp
     OverlaySlots.cpp

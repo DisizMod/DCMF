@@ -89,6 +89,17 @@ namespace AnimationGraph
 			return a_context.character ? SKSE::stl::adjust_pointer<RE::BShkbAnimationGraph>(a_context.character, -0xC0) : nullptr;
 		}
 
+		// Under g_lock: a file the actor started, on top of its last ones
+		void NoteRecent(RE::FormID a_actor, const std::string& a_file)
+		{
+			auto& recent = g_recent[a_actor];
+			std::erase(recent, a_file);
+			recent.insert(recent.begin(), a_file);
+			if (recent.size() > kRecent) {
+				recent.pop_back();
+			}
+		}
+
 		// "Mod / Submod" when OAR plays a replacer for the clip, and " / variant.hkx" after it when that is one of a
 		// variants folder's; nothing when it plays the file itself
 		std::string ReplacerOf(RE::hkbClipGenerator* a_clip)
@@ -150,12 +161,7 @@ namespace AnimationGraph
 				std::erase_if(list, [&](const Active& a_entry) { return a_entry.clip == a_this; });
 				list.push_back(active);
 				if (!bSwapped) {
-					auto& recent = g_recent[actor->GetFormID()];
-					std::erase(recent, active.file);
-					recent.insert(recent.begin(), active.file);
-					if (recent.size() > kRecent) {
-						recent.pop_back();
-					}
+					NoteRecent(actor->GetFormID(), active.file);
 				}
 			}
 			if (!bSwapped) {
@@ -163,15 +169,15 @@ namespace AnimationGraph
 			}
 		}
 
-		void DeactivateHook(RE::hkbClipGenerator* a_this, const RE::hkbContext& a_context)
+		// Behavior threads: a clip gone from the graph, held back rather than queued: Flush sends it once no activation of
+		// the same clip took it
+		void Deactivated(const RE::hkbClipGenerator* a_this, const RE::hkbContext& a_context)
 		{
-			g_deactivate(a_this, a_context);
 			auto* graph = GraphOf(a_context);
 			auto* actor = graph ? graph->holder : nullptr;
 			if (!actor) {
 				return;
 			}
-			// Held back rather than queued: Flush sends it once no activation of the same clip took it
 			std::scoped_lock guard(g_lock);
 			if (const auto it = g_active.find(actor->GetFormID()); it != g_active.end()) {
 				if (const auto found = std::ranges::find(it->second, a_this, &Active::clip); found != it->second.end()) {
@@ -179,6 +185,12 @@ namespace AnimationGraph
 					it->second.erase(found);
 				}
 			}
+		}
+
+		void DeactivateHook(RE::hkbClipGenerator* a_this, const RE::hkbContext& a_context)
+		{
+			g_deactivate(a_this, a_context);
+			Deactivated(a_this, a_context);
 		}
 
 		// The event names some clip's OnAnimationEvent listens for, lowercase; read on the behavior threads, rebuilt on the main
@@ -330,24 +342,80 @@ namespace AnimationGraph
 			return a_folder.filename().string();
 		}
 
+		// The OAR folder of the actor's project: its behavior file's folder, the replacers under its animations
+		std::filesystem::path ReplacerRoot(RE::Actor* a_actor)
+		{
+			auto* race = a_actor ? a_actor->GetRace() : nullptr;
+			auto* base = a_actor ? a_actor->GetActorBase() : nullptr;
+			if (!race || !base) {
+				return {};
+			}
+			const auto sex = base->GetSex() == RE::SEX::kFemale ? RE::SEXES::kFemale : RE::SEXES::kMale;
+			const char* model = race->behaviorGraphs[sex].GetModel();
+			if (!model || !*model) {
+				return {};
+			}
+			return std::filesystem::path("Data\\meshes") / std::filesystem::path(model).parent_path() / "animations" / "OpenAnimationReplacer";
+		}
+
+		// The file an OAR replacer, "Mod / Submod" or one of its variants, plays for the animation, as the graph's list
+		// names it from the animations folder; empty when it has none
+		std::string ReplacerFile(RE::Actor* a_actor, std::string_view a_file, std::string_view a_replacer)
+		{
+			const auto root = ReplacerRoot(a_actor);
+			if (root.empty() || a_file.empty()) {
+				return {};
+			}
+			const std::filesystem::path relative(a_file);
+			const auto variants = relative.parent_path() / ("_variants_" + relative.stem().string());
+			std::error_code error;
+			for (const auto& mod : std::filesystem::directory_iterator(root, error)) {
+				if (!mod.is_directory()) {
+					continue;
+				}
+				const auto modName = ConfigName(mod.path());
+				for (const auto& subMod : std::filesystem::directory_iterator(mod.path(), error)) {
+					if (!subMod.is_directory()) {
+						continue;
+					}
+					const auto name = std::format("{} / {}", modName, ConfigName(subMod.path()));
+					std::filesystem::path found;
+					if (Utils::CompareStringsIgnoreCase(a_replacer, std::string_view(name))) {
+						// The submod: its own file, or the first of its variants
+						if (std::filesystem::exists(subMod.path() / relative, error)) {
+							found = subMod.path() / relative;
+						} else {
+							for (const auto& variant : std::filesystem::directory_iterator(subMod.path() / variants, error)) {
+								if (variant.is_regular_file() && Utils::CompareStringsIgnoreCase(variant.path().extension().string(), ".hkx"sv)) {
+									found = variant.path();
+									break;
+								}
+							}
+						}
+					} else if (a_replacer.size() > name.size() + 3 && Utils::CompareStringsIgnoreCase(a_replacer.substr(0, name.size()), std::string_view(name)) && a_replacer.substr(name.size(), 3) == " / "sv) {
+						found = subMod.path() / variants / std::string(a_replacer.substr(name.size() + 3));
+						if (!std::filesystem::exists(found, error)) {
+							found.clear();
+						}
+					}
+					if (!found.empty()) {
+						return Components::AnimationValue::Normalize(std::filesystem::relative(found, root.parent_path(), error).string());
+					}
+				}
+			}
+			return {};
+		}
+
 		// Every OAR submod of the reference's project with a file or variants for this animation, "Mod / Submod"
 		std::vector<UI::UICommon::PickerItem> ReplacerItems(std::string_view a_file)
 		{
 			std::vector<UI::UICommon::PickerItem> out;
 			auto* actor = UI::UIManager::GetSingleton().GetRefrToEvaluate() ? UI::UIManager::GetSingleton().GetRefrToEvaluate()->As<RE::Actor>() : nullptr;
-			auto* race = actor ? actor->GetRace() : nullptr;
-			auto* base = actor ? actor->GetActorBase() : nullptr;
 			const auto file = Components::AnimationValue::Normalize(a_file);
-			if (!race || !base || file.empty()) {
+			const auto root = ReplacerRoot(actor);
+			if (root.empty() || file.empty()) {
 				return out;
 			}
-			const auto sex = base->GetSex() == RE::SEX::kFemale ? RE::SEXES::kFemale : RE::SEXES::kMale;
-			const char* model = race->behaviorGraphs[sex].GetModel();
-			if (!model || !*model) {
-				return out;
-			}
-			// The project's folder is its behavior file's, the replacers under its animations
-			const auto root = std::filesystem::path("Data\\meshes") / std::filesystem::path(model).parent_path() / "animations" / "OpenAnimationReplacer";
 			const std::filesystem::path relative(file);
 			const auto variants = relative.parent_path() / ("_variants_" + relative.stem().string());
 			std::error_code error;
@@ -487,6 +555,74 @@ namespace AnimationGraph
 			});
 		a_value.replacer.SetPickerItems([value = &a_value] { return ReplacerItems(value->file.GetValue()); },
 			[](std::string_view a_replacer) -> std::string { return a_replacer.empty() ? std::string{} : std::string("Replacer"); });
+	}
+
+	RE::BShkbAnimationGraph* GraphOn(RE::TESObjectREFR* a_refr)
+	{
+		return CurrentGraph(a_refr);
+	}
+
+	std::optional<Binding> BindingOf(RE::TESObjectREFR* a_refr, const Components::AnimationValue& a_value, std::string* a_outWhy)
+	{
+		const auto fail = [&](std::string_view a_why) -> std::optional<Binding> {
+			if (a_outWhy) {
+				*a_outWhy = a_why;
+			}
+			return std::nullopt;
+		};
+		auto* graph = CurrentGraph(a_refr);
+		const auto* strings = StringsOf(graph);
+		if (!strings) {
+			return fail("The actor has no behavior graph loaded.");
+		}
+		const auto file = Components::AnimationValue::Normalize(a_value.file.GetValue());
+		if (file.empty()) {
+			return fail("No animation picked.");
+		}
+		// The file itself, or the replacer's own, which the list names from the game's folder: matched by its end
+		std::string wanted = file;
+		const bool bReplacer = a_value.bReplacer && !a_value.replacer.GetValue().empty();
+		if (bReplacer) {
+			wanted = ReplacerFile(a_refr ? a_refr->As<RE::Actor>() : nullptr, file, a_value.replacer.GetValue());
+			if (wanted.empty()) {
+				return fail("The replacer has no file for this animation in the actor's project.");
+			}
+		}
+		for (std::int32_t i = 0; i < static_cast<std::int32_t>(strings->animationNames.size()); ++i) {
+			const char* name = strings->animationNames[i].c_str();
+			if (!name) {
+				continue;
+			}
+			const auto entry = Components::AnimationValue::Normalize(name);
+			const bool bMatch = bReplacer ? entry.ends_with(wanted) && (entry.size() == wanted.size() || entry[entry.size() - wanted.size() - 1] == '\\') : entry == wanted;
+			if (bMatch) {
+				return Binding{ graph, static_cast<std::uint16_t>(i) };
+			}
+		}
+		return fail(bReplacer ? "The actor's graph does not list the replacer's file." : "The actor's graph does not list this file.");
+	}
+
+	void Started(const RE::hkbContext& a_context, const void* a_clip, std::string a_file, std::string a_replacer)
+	{
+		auto* graph = GraphOf(a_context);
+		auto* actor = graph ? graph->holder : nullptr;
+		if (!actor || a_file.empty()) {
+			return;
+		}
+		Active active{ static_cast<const RE::hkbClipGenerator*>(a_clip), graph, std::move(a_file), std::move(a_replacer) };
+		{
+			std::scoped_lock guard(g_lock);
+			auto& list = g_active[actor->GetFormID()];
+			std::erase_if(list, [&](const Active& a_entry) { return a_entry.clip == active.clip; });
+			list.push_back(active);
+			NoteRecent(actor->GetFormID(), active.file);
+		}
+		ClipPlayer::QueueAnimation(actor, ClipPlayer::Event::kAnimationStart, active.file, active.replacer);
+	}
+
+	void Ended(const RE::hkbContext& a_context, const void* a_clip)
+	{
+		Deactivated(static_cast<const RE::hkbClipGenerator*>(a_clip), a_context);
 	}
 
 	void SetEventPicker(Components::TextValue& a_value)

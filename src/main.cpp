@@ -1,4 +1,5 @@
 #include "AnimationGraph.h"
+#include "AnimationPlay.h"
 #include "BodyTypes.h"
 #include "Hook.h"
 #include "apply/Applier.h"
@@ -37,6 +38,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 		Apply::Install();
 		ClipPlayer::Install();
 		AnimationGraph::Install();
+		AnimationPlay::Install();
 		BodyTypes::Load();
 		Scan::Scanner::GetSingleton().Start();
 		break;
