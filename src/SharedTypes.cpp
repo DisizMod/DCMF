@@ -857,7 +857,7 @@ namespace Components
 
 	std::string AnimationValue::GetArgument() const
 	{
-		return bReplacer ? std::format("{} as {}", file.GetValue(), replacer.GetValue()) : std::string(file.GetValue());
+		return bReplacer && !replacer.GetValue().empty() ? std::format("{} as {}", file.GetValue(), replacer.GetValue()) : std::string(file.GetValue());
 	}
 
 	bool AnimationValue::Matches(std::string_view a_file, std::string_view a_replacer) const
