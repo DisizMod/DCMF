@@ -916,13 +916,16 @@ namespace Components
 			made.release();
 			_expected.reset(row);
 		}
-		// Static only: a draw has no single value to match
+		// Static only: a draw has no single value to match, and a feed none until it is read for an actor
 		if (auto* reference = dynamic_cast<Channels::ReferenceChannel*>(_expected.get())) {
 			reference->value->bRandom = false;
 			reference->value->random.reset();
 		} else if (auto* part = dynamic_cast<Channels::HeadPartChannel*>(_expected.get())) {
 			part->value->bRandom = false;
 			part->value->random.reset();
+			part->value->form.getFeeds = nullptr;
+		} else if (auto* form = dynamic_cast<Channels::FormChannel*>(_expected.get())) {
+			form->value->form.getFeeds = nullptr;
 		}
 	}
 
@@ -1071,6 +1074,12 @@ namespace Components
 		if (const auto it = a_value.FindMember("value"); it != a_value.MemberEnd()) {
 			if (auto* component = ExpectedComponent()) {
 				component->Parse(it->value);
+			}
+			// A feed written by hand is read as no value
+			if (auto* part = dynamic_cast<Channels::HeadPartChannel*>(_expected.get())) {
+				part->value->form.SetIsFeed(false);
+			} else if (auto* form = dynamic_cast<Channels::FormChannel*>(_expected.get())) {
+				form->value->form.SetIsFeed(false);
 			}
 		}
 	}
