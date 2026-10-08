@@ -1178,27 +1178,6 @@ namespace Conditions
 		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
 	};
 
-	// IsWornInSlotFromPlugin: whether what is worn in one slot comes from a plugin
-	class IsWornInSlotFromPluginCondition : public ConditionBase
-	{
-	public:
-		IsWornInSlotFromPluginCondition();
-
-		void PostInitialize() override;
-
-		[[nodiscard]] RE::BSString GetArgument() const override;
-
-		[[nodiscard]] RE::BSString GetName() const override { return "IsWornInSlotFromPlugin"sv.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref wears an item in the specified slot that a plugin adds."sv.data(); }
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
-
-		NumericConditionComponent* slotComponent;
-		TextConditionComponent* textComponent;
-
-	protected:
-		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
-	};
-
 	class ScaleCondition : public ConditionBase
 	{
 	public:

@@ -125,8 +125,9 @@ namespace Migrations
 			return changed;
 		}
 
-		// 1.2.0: IsWornInSlotNamed and IsWornInSlotForm become IsWornNamed and IsWorn, their slot dropped. A form that
-		// does not cover the slot never held before and can hold now, which is said
+		// 1.2.0: IsWornInSlotNamed, IsWornInSlotForm and IsWornInSlotFromPlugin become IsWornNamed, IsWorn and
+		// IsWornFromPlugin, their slot dropped. A form that does not cover the slot never held before and can hold now, and a
+		// plugin now counts whatever of it is worn, both said
 		std::size_t SlotlessWorn(rapidjson::Document& a_doc, std::string_view a_mod)
 		{
 			auto& allocator = a_doc.GetAllocator();
@@ -134,10 +135,13 @@ namespace Migrations
 			ForEachObject(a_doc, a_mod, [&](rapidjson::Value& a_object, const Where& a_where) {
 				const auto condition = StringOf(a_object, "condition");
 				const bool bNamed = condition == "IsWornInSlotNamed";
-				if (!bNamed && condition != "IsWornInSlotForm") {
+				const bool bPlugin = condition == "IsWornInSlotFromPlugin";
+				if (!bNamed && !bPlugin && condition != "IsWornInSlotForm") {
 					return;
 				}
-				if (!bNamed) {
+				if (bPlugin) {
+					logger::warn("storage: {} '{}': IsWornInSlotFromPlugin {} is IsWornFromPlugin now, which holds for anything of that plugin worn, not only in its slot", a_where.mod, a_where.owner, StringOf(a_object, "Plugin"));
+				} else if (!bNamed) {
 					const auto slotIt = a_object.FindMember("Slot");
 					const auto formIt = a_object.FindMember("Form");
 					std::optional<std::uint32_t> slot;
@@ -161,7 +165,7 @@ namespace Migrations
 					}
 				}
 				a_object.RemoveMember("Slot");
-				a_object["condition"].SetString(bNamed ? "IsWornNamed" : "IsWorn", allocator);
+				a_object["condition"].SetString(bNamed ? "IsWornNamed" : bPlugin ? "IsWornFromPlugin" : "IsWorn", allocator);
 				if (const auto version = a_object.FindMember("requiredVersion"); version != a_object.MemberEnd()) {
 					version->value.SetString("1.0.0", allocator);
 				}
@@ -180,7 +184,7 @@ namespace Migrations
 		// In order; a step only ever adds to this list
 		const std::array kSteps{
 			Step{ { 1, 1, 0 }, "random scopes to seeds"sv, &RandomScopeToSeed },
-			Step{ { 1, 2, 0 }, "IsWornInSlotNamed and IsWornInSlotForm to IsWornNamed and IsWorn"sv, &SlotlessWorn },
+			Step{ { 1, 2, 0 }, "the slot conditions to IsWornNamed, IsWorn and IsWornFromPlugin"sv, &SlotlessWorn },
 		};
 	}
 

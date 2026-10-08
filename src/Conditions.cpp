@@ -472,7 +472,6 @@ namespace Conditions
 		registry.AddConditionFactory("SubmergeLevel"sv, []() -> ICondition* { return new SubmergeLevelCondition(); });
 		registry.AddConditionFactory("IsCurrentPackage"sv, []() -> ICondition* { return new IsCurrentPackageCondition(); });
 		registry.AddConditionFactory("IsWornInSlotHasKeyword"sv, []() -> ICondition* { return new IsWornInSlotHasKeywordCondition(); });
-		registry.AddConditionFactory("IsWornInSlotFromPlugin"sv, []() -> ICondition* { return new IsWornInSlotFromPluginCondition(); });
 		registry.AddConditionFactory("Scale"sv, []() -> ICondition* { return new ScaleCondition(); });
 		registry.AddConditionFactory("Height"sv, []() -> ICondition* { return new HeightCondition(); });
 		registry.AddConditionFactory("Weight"sv, []() -> ICondition* { return new WeightCondition(); });
@@ -580,7 +579,7 @@ namespace Conditions
 										"CrimeGold", "IsOverEncumbered", "IsAnimationPlaying" });
 				put(kCategories[3], { "HasMagicEffect", "HasMagicEffectWithKeyword", "MagicEffectElapsedTime", "CastingSpell", "CurrentCastingType", "CurrentDeliveryType" });
 				put(kCategories[4], { "IsEquipped", "IsEquippedType", "IsEquippedHasKeyword", "IsEquippedPower", "IsEquippedShout", "IsEquippedHasEnchantment", "IsEquippedHasEnchantmentWithKeyword",
-										"HasBoundWeaponEquipped", "IsWorn", "IsWornHasKeyword", "IsWornNamed", "IsWornFromPlugin", "IsWornInSlot", "IsWornInSlotHasKeyword", "IsWornInSlotFromPlugin", "EquippedObjectWeight", "InventoryCount", "InventoryCountHasKeyword",
+										"HasBoundWeaponEquipped", "IsWorn", "IsWornHasKeyword", "IsWornNamed", "IsWornFromPlugin", "IsWornInSlot", "IsWornInSlotHasKeyword", "EquippedObjectWeight", "InventoryCount", "InventoryCountHasKeyword",
 										"InventoryWeight", "IsAttackTypeKeyword", "IsAttackTypeFlag" });
 				put(kCategories[5], { "IsInInterior", "IsInLocation", "LocationHasKeyword", "LocationCleared", "IsParentCell", "IsWorldSpace", "HasRefType", "CurrentWeather", "CurrentWeatherHasFlag",
 										"WindSpeed", "WindAngleDifference", "CurrentGameTime", "LightLevel", "IsAboveWater", "SubmergeLevel", "SurfaceMaterial", "IsOnStairs", "MovementSurfaceAngle",
@@ -2532,30 +2531,6 @@ namespace Conditions
 		SetPluginPicker(textComponent);
 	}
 
-	IsWornInSlotFromPluginCondition::IsWornInSlotFromPluginCondition()
-	{
-		slotComponent = AddComponent<NumericConditionComponent>("Slot", "The slot that should be checked.");
-		textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the loaded plugins.");
-		SetPluginPicker(textComponent);
-		textComponent->SetAllowSpaces(true);
-	}
-
-	void IsWornInSlotFromPluginCondition::PostInitialize()
-	{
-		ConditionBase::PostInitialize();
-		slotComponent->value.getEnumMap = &IsWornInSlotHasKeywordCondition::GetEnumMap;
-	}
-
-	RE::BSString IsWornInSlotFromPluginCondition::GetArgument() const
-	{
-		std::string slotName = "(Invalid)";
-		const auto& map = IsWornInSlotHasKeywordCondition::GetEnumMap();
-		if (const auto it = map.find(static_cast<int32_t>(slotComponent->GetNumericValue(nullptr))); it != map.end()) {
-			slotName = it->second;
-		}
-		return std::format("{}, {}", slotName, textComponent->GetTextValue().c_str()).data();
-	}
-
 	HasBoneCondition::HasBoneCondition()
 	{
 		textComponent = AddComponent<TextConditionComponent>("Bone name", "The node's own name, as the skeleton or mesh spells it: NPC L Thigh [LThg], L Breast01.");
@@ -4107,24 +4082,6 @@ namespace Conditions
 			const auto actor = ActorOf(a_refr);
 			KeywordsOf(actor ? actor->GetWornArmor(bit, true) : nullptr, a_out);
 		}, kWornInterval));
-	}
-
-	Program::Expr IsWornInSlotFromPluginCondition::Compile(Program::Builder& a_builder) const
-	{
-		const auto slot = StaticSlot(slotComponent);
-		const auto plugin = std::string(textComponent->GetTextValue().c_str());
-		if (!slot || plugin.empty()) {
-			return a_builder.False();
-		}
-		const auto bit = static_cast<RE::BIPED_MODEL::BipedObjectSlot>(1u << *slot);
-		const auto key = BuiltinResources::TextSet(BuiltinResources::WornSlotPluginsKey(*slot), "The plugin that adds what the actor wears in the slot.", [bit](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
-			auto* actor = ActorOf(a_refr);
-			auto* armor = actor ? actor->GetWornArmor(bit, true) : nullptr;
-			if (const auto* file = armor ? armor->GetFile(0) : nullptr) {
-				a_out.emplace_back(file->GetFilename());
-			}
-		}, kWornInterval);
-		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(plugin) });
 	}
 
 	Program::Expr IsBlockingCondition::Compile(Program::Builder& a_builder) const
