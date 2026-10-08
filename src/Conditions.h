@@ -528,6 +528,7 @@ namespace Conditions
 		HasPerkCondition()
 		{
 			formComponent = AddComponent<FormConditionComponent>("Perk", "The perk that the evaluated ref should have.", RE::FormType::Perk);
+			formComponent->form.getFeeds = nullptr;  // the form decides what is read: a feed has none to give
 		}
 
 		void InitializeLegacy(const char* a_argument) override { formComponent->form.ParseLegacy(a_argument); }
@@ -549,6 +550,7 @@ namespace Conditions
 		HasSpellCondition()
 		{
 			formComponent = AddComponent<FormConditionComponent>("Spell", "The spell or shout that the evaluated ref should have.");
+			formComponent->form.getFeeds = nullptr;  // the form decides what is read: a feed has none to give
 			formComponent->form.SetFormTypeFilter({ RE::FormType::Spell });
 		}
 
@@ -1420,6 +1422,7 @@ namespace Conditions
 		InventoryCountCondition()
 		{
 			formComponent = AddComponent<FormConditionComponent>("Form", "The form that should be searched for in the inventory.");
+			formComponent->form.getFeeds = nullptr;  // the form decides what is read: a feed has none to give
 			formComponent->form.SetFormTypeFilter({ RE::FormType::Armor, RE::FormType::Weapon, RE::FormType::Ammo, RE::FormType::Book, RE::FormType::Misc, RE::FormType::KeyMaster, RE::FormType::SoulGem, RE::FormType::AlchemyItem, RE::FormType::Ingredient, RE::FormType::Scroll, RE::FormType::Light });
 			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
 			numericComponent = AddComponent<NumericConditionComponent>("Numeric value", "The value to compare the inventory count with.");
@@ -1996,6 +1999,7 @@ namespace Conditions
 		IsScenePlayingCondition()
 		{
 			formComponent = AddComponent<FormConditionComponent>("Scene", "The scene to check.", RE::FormType::Scene);
+			formComponent->form.getFeeds = nullptr;  // the form decides what is read: a feed has none to give
 		}
 
 		[[nodiscard]] RE::BSString GetArgument() const override { return formComponent->GetArgument(); }
@@ -2621,6 +2625,7 @@ namespace Conditions
 		MagicEffectElapsedTimeCondition()
 		{
 			formComponent = AddComponent<FormConditionComponent>("Magic effect", "The magic effect to check.", RE::FormType::MagicEffect);
+			formComponent->form.getFeeds = nullptr;  // the form decides what is read: a feed has none to give
 			boolComponent = AddComponent<BoolConditionComponent>("Active effects only", "Enable to check active magic effects only.");
 			comparisonComponent = AddComponent<ComparisonConditionComponent>("Comparison");
 			numericComponent = AddComponent<NumericConditionComponent>("Numeric value");
