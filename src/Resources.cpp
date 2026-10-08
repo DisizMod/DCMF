@@ -466,6 +466,100 @@ namespace
 	};
 }
 
+namespace
+{
+	// A script's feeds: the last value set for each actor kept here too, and set again when DCMF tracks the actor anew,
+	// since a script cannot listen for that
+	struct PapyrusValue
+	{
+		bool bForm = false;
+		float number = 0.f;
+		RE::FormID form = 0;
+	};
+	std::mutex g_papyrusLock;
+	std::map<std::string, Resources::ValueType, std::less<>> g_papyrusFeeds;
+	std::map<std::pair<std::string, RE::FormID>, PapyrusValue> g_papyrusValues;
+
+	class PapyrusListener : public DCMF_API::Resources::IActorListener
+	{
+	public:
+		void OnActorTracked(RE::TESObjectREFR* a_actor) noexcept override
+		{
+			std::vector<std::pair<std::string, PapyrusValue>> values;
+			{
+				std::scoped_lock guard(g_papyrusLock);
+				for (const auto& [key, value] : g_papyrusValues) {
+					if (key.second == a_actor->GetFormID()) {
+						values.emplace_back(key.first, value);
+					}
+				}
+			}
+			for (const auto& [key, value] : values) {
+				(void)(value.bForm ? Resources::SetForm(key, a_actor, RE::TESForm::LookupByID(value.form)) : Resources::SetNumber(key, a_actor, value.number));
+			}
+		}
+	};
+	PapyrusListener g_papyrusListener;
+
+	bool RegisterFeed(RE::StaticFunctionTag*, RE::BSFixedString a_key, bool a_bForm, bool a_bPerActor, RE::BSFixedString a_displayName, RE::BSFixedString a_description)
+	{
+		const std::string key = a_key.c_str() ? a_key.c_str() : "";
+		const auto type = a_bForm ? Resources::ValueType::Form : Resources::ValueType::Number;
+		std::scoped_lock guard(g_papyrusLock);
+		// Again each session or each load: the same feed is already there
+		if (const auto it = g_papyrusFeeds.find(key); it != g_papyrusFeeds.end()) {
+			return it->second == type;
+		}
+		Resources::Info info{ .key = key, .displayName = a_displayName.c_str() ? a_displayName.c_str() : "", .description = a_description.c_str() ? a_description.c_str() : "", .plugin = "Papyrus",
+			.type = type, .scope = a_bPerActor ? Resources::Scope::Actor : Resources::Scope::World, .refresh = Resources::Refresh::Stored, .bFeed = true };
+		if (const auto result = Resources::Register(std::move(info), nullptr); result != Resources::Result::OK) {
+			logger::warn("resources: a script could not register the feed '{}' ({})", key, static_cast<std::uint8_t>(result));
+			return false;
+		}
+		static const bool bListening = [] {
+			Resources::AddActorListener(&g_papyrusListener);
+			return true;
+		}();
+		g_papyrusFeeds.emplace(key, type);
+		logger::info("resources: a script registered the feed '{}'", key);
+		return true;
+	}
+
+	template <class Set>
+	bool SetFeed(const std::string& a_key, RE::Actor* a_actor, PapyrusValue a_value, Set a_set)
+	{
+		{
+			std::scoped_lock guard(g_papyrusLock);
+			const auto it = g_papyrusFeeds.find(a_key);
+			if (it == g_papyrusFeeds.end() || (it->second == Resources::ValueType::Form) != a_value.bForm) {
+				return false;
+			}
+			g_papyrusValues[{ a_key, a_actor ? a_actor->GetFormID() : 0 }] = a_value;
+		}
+		return a_set() == Resources::Result::OK;
+	}
+
+	bool SetFeedNumber(RE::StaticFunctionTag*, RE::BSFixedString a_key, RE::Actor* a_actor, float a_value)
+	{
+		const std::string key = a_key.c_str() ? a_key.c_str() : "";
+		return SetFeed(key, a_actor, { .bForm = false, .number = a_value }, [&] { return Resources::SetNumber(key, a_actor, a_value); });
+	}
+
+	bool SetFeedForm(RE::StaticFunctionTag*, RE::BSFixedString a_key, RE::Actor* a_actor, RE::TESForm* a_form)
+	{
+		const std::string key = a_key.c_str() ? a_key.c_str() : "";
+		return SetFeed(key, a_actor, { .bForm = true, .form = a_form ? a_form->GetFormID() : 0 }, [&] { return Resources::SetForm(key, a_actor, a_form); });
+	}
+}
+
+bool Resources::RegisterPapyrus(RE::BSScript::IVirtualMachine* a_vm)
+{
+	a_vm->RegisterFunction("RegisterFeed", "DCMF", RegisterFeed);
+	a_vm->RegisterFunction("SetFeedNumber", "DCMF", SetFeedNumber);
+	a_vm->RegisterFunction("SetFeedForm", "DCMF", SetFeedForm);
+	return true;
+}
+
 extern "C" __declspec(dllexport) DCMF_API::Resources::IResourcesInterface* RequestPluginAPI_Resources(const DCMF_API::Resources::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
 {
 	if (!a_pluginName) {

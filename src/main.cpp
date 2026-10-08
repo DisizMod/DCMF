@@ -90,6 +90,9 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 	if (const auto* papyrus = SKSE::GetPapyrusInterface(); !papyrus || !papyrus->Register(MfgFix::Register)) {
 		logger::error("mfg: the Papyrus natives could not be registered");
 	}
+	if (const auto* papyrus = SKSE::GetPapyrusInterface(); !papyrus || !papyrus->Register(Resources::RegisterPapyrus)) {
+		logger::error("resources: the DCMF script's natives could not be registered");
+	}
 
 	// Once, for every call this plugin patches: this CommonLibSSE-NG replaces the trampoline on each AllocTrampoline
 	SKSE::AllocTrampoline(14 * 12);

@@ -73,6 +73,9 @@ namespace Resources
 
 	// Main thread, every frame: the thread gathering may run on
 	void SetMainThread();
+
+	// The DCMF script's natives: feeds a Papyrus script registers and sets
+	bool RegisterPapyrus(RE::BSScript::IVirtualMachine* a_vm);
 	// Main thread, at the start of each DCMF tick: what is gathered every tick is due again
 	void BeginTick();
 }
