@@ -813,6 +813,14 @@ namespace Resolve
 						WrongType(contribution.channel, "number");
 						continue;
 					}
+					// A feed with no key drives nothing, said once per row
+					if (number->value->value.IsEmptyFeed()) {
+						static std::unordered_set<const void*> said;
+						if (said.insert(number).second) {
+							logger::warn("resolve: '{}' in '{}' is read from a feed with no key, and sets nothing", number->GetName(), contribution.subMod ? contribution.subMod->GetName() : ""sv);
+						}
+						continue;
+					}
 					const float value = NumberOf(number, a_refr, { a_refr, contribution.subMod, contribution.enteredAt });
 					// A stepped number is set at once, not blended by the transition
 					const float w = entry.type == Apply::ValueType::kSteppedNumber ? (contribution.weight > 0.f ? 1.f : 0.f) : contribution.weight;

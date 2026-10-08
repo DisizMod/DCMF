@@ -456,7 +456,10 @@ namespace Components
 			kNone = kTotal
 		};
 
-		[[nodiscard]] bool IsValid() const { return _type == Type::kGlobalVariable ? _globalVariable.IsValid() : true; }
+		[[nodiscard]] bool IsValid() const { return _type == Type::kGlobalVariable ? _globalVariable.IsValid() : !IsEmptyFeed(); }
+
+		// A feed with no key names nothing: the row sets no value rather than 0
+		[[nodiscard]] bool IsEmptyFeed() const { return _type == Type::kFeed && _feed.empty(); }
 
 		[[nodiscard]] float GetValue(RE::TESObjectREFR* a_refr) const;
 
