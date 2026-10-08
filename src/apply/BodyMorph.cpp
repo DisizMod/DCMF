@@ -425,6 +425,21 @@ namespace Apply
 					return;
 				}
 				a_shape.own = RE::NiPointer(own);
+				// The copy draws from the original's GPU buffer, which holds our morphs already: one it came with would
+				// show the mesh as loaded until our next upload, a frame of the body without them
+				for (std::uint32_t i = 0; i < own->numPartitions && i < a_shape.partition->numPartitions; ++i) {
+					auto* ownData = own->partitions[i].buffData;
+					auto* originalData = a_shape.partition->partitions[i].buffData;
+					if (ownData && originalData && ownData->vertexBuffer != originalData->vertexBuffer) {
+						if (originalData->vertexBuffer) {
+							originalData->vertexBuffer->AddRef();
+						}
+						if (ownData->vertexBuffer) {
+							ownData->vertexBuffer->Release();
+						}
+						ownData->vertexBuffer = originalData->vertexBuffer;
+					}
+				}
 				skin->skinPartition = a_shape.own;
 			}
 			const auto bytes = a_shape.base.size();
