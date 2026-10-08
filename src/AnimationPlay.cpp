@@ -134,6 +134,41 @@ namespace AnimationPlay
 			bool pingPongBackward = false;  // 106
 
 			RE::hkRefPtr<RE::hkbBehaviorGraph> behaviorGraph;
+			std::vector<std::int32_t> boneTracks;
+
+			// Each bone's track found by its name, -1 where the file has none: a file made for another skeleton, or a paired one,
+			// whose partner's tracks are named 2_. Empty, tracks go to bones in order, as the engine plays a file alone
+			static std::vector<std::int32_t> BoneTracksOf(const RE::hkaAnimationBinding& a_binding, const RE::hkbContext& a_context)
+			{
+				const auto* skeleton = a_context.character->setup ? a_context.character->setup->animationSkeleton.get() : nullptr;
+				if (!skeleton || !a_binding.animation || !a_binding.transformTrackToBoneIndices.empty() || a_binding.blendHint.get() == RE::hkaAnimationBinding::BlendHint::kAdditive) {
+					return {};
+				}
+				const auto& names = a_binding.animation->annotationTracks;
+				const auto count = (std::min)(static_cast<std::int32_t>(names.size()), a_binding.animation->numberOfTransformTracks);
+				std::unordered_map<std::string_view, std::int32_t> trackOf;
+				for (std::int32_t t = 0; t < count; ++t) {
+					if (const char* name = names[t].trackName.c_str(); name && *name) {
+						trackOf.try_emplace(name, t);
+					}
+				}
+				std::vector<std::int32_t> tracks(skeleton->bones.size(), -1);
+				bool bInOrder = static_cast<std::int32_t>(tracks.size()) <= count;
+				std::size_t found = 0;
+				for (std::size_t b = 0; b < tracks.size(); ++b) {
+					const char* name = skeleton->bones[b].name.c_str();
+					if (const auto it = name ? trackOf.find(name) : trackOf.end(); it != trackOf.end()) {
+						tracks[b] = it->second;
+						++found;
+					}
+					bInOrder = bInOrder && tracks[b] == static_cast<std::int32_t>(b);
+				}
+				if (bInOrder || !found || tracks[0] < 0) {
+					return {};
+				}
+				logger::info("animations: the file's tracks found by name for {} of {} bones", found, tracks.size());
+				return tracks;
+			}
 
 			RE::hkbClipGenerator* AsClip() { return reinterpret_cast<RE::hkbClipGenerator*>(this); }
 
@@ -161,6 +196,7 @@ namespace AnimationPlay
 					return;
 				}
 				binding = withTriggers->binding.get();
+				boneTracks = binding ? BoneTracksOf(*binding, a_context) : std::vector<std::int32_t>{};
 				if (!animationControl && binding) {
 					auto* control = static_cast<RE::hkaDefaultAnimationControl*>(HavokHeapAlloc(sizeof(RE::hkaDefaultAnimationControl)));
 					if (!control) {
@@ -226,6 +262,9 @@ namespace AnimationPlay
 				auto* bind = animationControl->binding;
 				const auto& animation = bind->animation;
 				auto tracks = NumTransformTracks()(bind->transformTrackToBoneIndices, nullptr, poseCount, animation->numberOfTransformTracks) + 1;
+				if (!boneTracks.empty()) {
+					tracks = (std::min)(static_cast<std::int32_t>(boneTracks.size()), static_cast<std::int32_t>(poseCount));
+				}
 				if (a_context.character->numTracksInLOD > -1 && a_context.character->numTracksInLOD < tracks) {
 					tracks = a_context.character->numTracksInLOD;
 				}
@@ -233,9 +272,17 @@ namespace AnimationPlay
 					return;
 				}
 
-				std::vector<RE::hkQsTransform> sampled(static_cast<std::size_t>(tracks));
+				std::vector<RE::hkQsTransform> sampled(static_cast<std::size_t>(boneTracks.empty() ? tracks : animation->numberOfTransformTracks));
 				std::vector<float> floats(static_cast<std::size_t>((std::max)(animation->numberOfFloatTracks, 0)));
-				animation->SamplePartialTracks(localTime, static_cast<std::uint32_t>(tracks), sampled.data(), static_cast<std::uint32_t>(floats.size()), floats.data(), nullptr);
+				animation->SamplePartialTracks(localTime, static_cast<std::uint32_t>(sampled.size()), sampled.data(), static_cast<std::uint32_t>(floats.size()), floats.data(), nullptr);
+				// Tracks found by name put in bone order, a bone the file has no track for keeping the graph's pose
+				if (!boneTracks.empty()) {
+					std::vector<RE::hkQsTransform> ordered(static_cast<std::size_t>(tracks));
+					for (std::int32_t b = 0; b < tracks; ++b) {
+						ordered[b] = boneTracks[b] >= 0 ? sampled[boneTracks[b]] : poseOut[b];
+					}
+					sampled = std::move(ordered);
+				}
 
 				RE::hkaMirroredSkeleton* mirrored = nullptr;
 				if ((flags & 4) != 0) {
