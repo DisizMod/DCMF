@@ -1530,21 +1530,25 @@ namespace UI
 				}
 			}
 
+			// The lowest priority on top, the highest at the bottom
 			const auto drawSubModsOfKind = [&](SubModKind a_kind) {
+				std::vector<SubMod*> ofKind;
 				a_registeredMod->ForEachSubMod([&](SubMod* a_subMod) {
-					if (a_subMod->GetKind() != a_kind) {
-						return RE::BSVisit::BSVisitControl::kContinue;
-					}
-					// Filter
-					const auto search = a_filterResults.find(a_subMod->GetName().data());
-					if (search != a_filterResults.end()) {
-						const SubModNameFilterResult& filterResult = search->second;
-						if (filterResult.bDisplay) {
-							DrawSubMod(a_registeredMod, a_subMod, filterResult.bDuplicateName);
-						}
+					if (a_subMod->GetKind() == a_kind) {
+						ofKind.push_back(a_subMod);
 					}
 					return RE::BSVisit::BSVisitControl::kContinue;
 				});
+				for (auto* subMod : ofKind | std::views::reverse) {
+					// Filter
+					const auto search = a_filterResults.find(subMod->GetName().data());
+					if (search != a_filterResults.end()) {
+						const SubModNameFilterResult& filterResult = search->second;
+						if (filterResult.bDisplay) {
+							DrawSubMod(a_registeredMod, subMod, filterResult.bDuplicateName);
+						}
+					}
+				}
 			};
 
 			// Each list ends with its own add button in author mode, which names the new one in a popup

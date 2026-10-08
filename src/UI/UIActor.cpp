@@ -233,8 +233,9 @@ namespace UI
 		const auto trace = ModifierLog::GetSingleton().LiveTrace();
 		using Section = ModifierTrace::Section;
 		bool bAny = false;
+		// Each section's lowest priority on top, the highest at the bottom
 		for (const auto section : { Section::kPlaying, Section::kActive }) {
-			for (const auto& step : trace.steps) {
+			for (const auto& step : trace.steps | std::views::reverse) {
 				if (step.section == section) {
 					bAny = true;
 					UI::UIModifierLog::DrawTraceStep(step);
