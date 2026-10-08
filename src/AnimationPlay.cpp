@@ -134,7 +134,6 @@ namespace AnimationPlay
 			bool pingPongBackward = false;  // 106
 
 			RE::hkRefPtr<RE::hkbBehaviorGraph> behaviorGraph;
-			bool bPaired = false;  // a paired file: its root lines it up with a partner there is not, so the graph's is kept
 			std::vector<std::int32_t> cameraBones;  // the skeleton's camera bones, found at the first pose
 
 			RE::hkbClipGenerator* AsClip() { return reinterpret_cast<RE::hkbClipGenerator*>(this); }
@@ -256,9 +255,6 @@ namespace AnimationPlay
 				std::vector<RE::hkQsTransform> converted(static_cast<std::size_t>(poseCount));
 				ConvertPose()(tracks, sampled.data(), poseCount, converted.data(), &scratch, bind->transformTrackToBoneIndices, bind->blendHint.get() == RE::hkaAnimationBinding::BlendHint::kAdditive, mirrored, true);
 
-				if (bPaired && poseCount > 0) {
-					converted[0] = poseOut[0];
-				}
 				// The camera bones the graph's: a killmove's own camera track would take the player's camera
 				if (cameraBones.empty()) {
 					const auto* skeleton = a_context.character->setup ? a_context.character->setup->animationSkeleton.get() : nullptr;
@@ -330,7 +326,6 @@ namespace AnimationPlay
 				playing.clip = std::make_unique<FakeClip>();
 				playing.clip->animationBindingIndex = *playing.next;
 				playing.clip->mode = RE::hkbClipGenerator::PlaybackMode::kModeSinglePlay;
-				playing.clip->bPaired = std::filesystem::path(playing.file).filename().string().starts_with("paired_");
 				playing.clip->Activate(a_context);
 				AnimationGraph::Started(a_context, playing.clip.get(), playing.file, playing.replacer);
 				playing.next.reset();

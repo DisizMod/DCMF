@@ -608,6 +608,10 @@ namespace AnimationGraph
 		if (file.empty()) {
 			return fail("No animation picked.");
 		}
+		// TODO: a paired file is two skeletons' tracks; played without its partner they land on the actor's bones
+		if (std::filesystem::path(file).filename().string().starts_with("paired_")) {
+			return fail("Paired animations need a partner; not supported yet.");
+		}
 		// The file itself, or the replacer's own, which the list names from the game's folder: matched by its end
 		std::string wanted = file;
 		const bool bReplacer = a_value.bReplacer && !a_value.replacer.GetValue().empty();
