@@ -450,6 +450,7 @@ namespace Conditions
 		registry.AddConditionFactory("CurrentGameTime"sv, []() -> ICondition* { return new CurrentGameTimeCondition(); });
 		registry.AddConditionFactory("Random"sv, []() -> ICondition* { return new RandomCondition(); });
 		registry.AddConditionFactory("IsUnique"sv, []() -> ICondition* { return new IsUniqueCondition(); });
+		registry.AddConditionFactory("IsNamed"sv, []() -> ICondition* { return new IsNamedCondition(); });
 		registry.AddConditionFactory("IsClass"sv, []() -> ICondition* { return new IsClassCondition(); });
 		registry.AddConditionFactory("IsCombatStyle"sv, []() -> ICondition* { return new IsCombatStyleCondition(); });
 		registry.AddConditionFactory("IsVoiceType"sv, []() -> ICondition* { return new IsVoiceTypeCondition(); });
@@ -572,7 +573,7 @@ namespace Conditions
 					}
 				};
 				put(kCategories[0], { "AND", "OR", "XOR", "PRESET", "TARGET", "PLAYER" });
-				put(kCategories[1], { "IsForm", "IsActorBase", "IsRace", "IsClass", "IsCombatStyle", "IsVoiceType", "IsUnique", "IsFemale", "IsChild", "IsGuard", "IsSummoned", "IsGhost", "HasKeyword",
+				put(kCategories[1], { "IsForm", "IsActorBase", "IsNamed", "IsRace", "IsClass", "IsCombatStyle", "IsVoiceType", "IsUnique", "IsFemale", "IsChild", "IsGuard", "IsSummoned", "IsGhost", "HasKeyword",
 										"IsInFaction", "FactionRank", "Level", "HasPerk", "HasSpell", "Scale", "Height", "Weight", "HasMorph", "HasBone", "IsBodyType", "IsHeadType", "IsBodyUVLayoutType", "IsHeadUVLayoutType" });
 				put(kCategories[2], { "IsDead", "IsAttacking", "AttackState", "IsBlocking", "IsStaggered", "IsRunning", "IsSneaking", "IsSprinting", "IsSwimming", "IsInAir", "IsInCombat", "IsCombatState",
 										"IsWeaponDrawn", "IsTalking", "IsGreetingPlayer", "IsDoingFavor", "IsInScene", "IsInSpecifiedScene", "IsScenePlaying", "LifeState", "SitSleepState", "IdleTime",
@@ -3864,6 +3865,27 @@ namespace Conditions
 		}
 		const std::string text = textComponent->GetTextValue().c_str();
 		return text.empty() ? a_builder.False() : a_builder.HasAny(a_builder.ResourceSet(_definition->resource), { Resources::TextKey(text) });
+	}
+
+	Program::Expr IsNamedCondition::Compile(Program::Builder& a_builder) const
+	{
+		const auto name = std::string(textComponent->GetTextValue().c_str());
+		if (name.empty()) {
+			return a_builder.False();
+		}
+		// The name shown, a renamed follower's too, and its base's; read again every five seconds
+		const auto key = BuiltinResources::TextSet("dcmf.names", "The actor's name, as the game shows it and as its base has it.", [](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
+			if (!a_refr) {
+				return;
+			}
+			if (const char* shown = a_refr->GetDisplayFullName(); shown && *shown) {
+				a_out.emplace_back(shown);
+			}
+			if (const auto* base = a_refr->GetBaseObject(); base && base->GetName() && *base->GetName()) {
+				a_out.emplace_back(base->GetName());
+			}
+		}, 5.f);
+		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(name) });
 	}
 
 	Program::Expr IsWornNamedCondition::Compile(Program::Builder& a_builder) const

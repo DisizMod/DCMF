@@ -343,6 +343,26 @@ namespace Conditions
 	// Any thread: a plugin's condition added to the picker and to what files may name; false when the name is taken
 	bool AddResourceCondition(ResourceCondition::Definition a_definition);
 
+	class IsNamedCondition : public ConditionBase
+	{
+	public:
+		IsNamedCondition()
+		{
+			textComponent = AddComponent<TextConditionComponent>("Name", "The actor's name, as the game shows it or as its base has it; whatever the case.");
+			textComponent->SetAllowSpaces(true);
+		}
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return textComponent->GetArgument(); }
+		[[nodiscard]] RE::BSString GetName() const override { return "IsNamed"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref is named this."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 2, 0 }; }
+
+		TextConditionComponent* textComponent;
+
+	protected:
+		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
+	};
+
 	class IsWornNamedCondition : public ConditionBase
 	{
 	public:
