@@ -1,5 +1,7 @@
 #include "Migrations.h"
 
+#include "Utils.h"
+
 #include <array>
 #include <functional>
 
@@ -123,6 +125,51 @@ namespace Migrations
 			return changed;
 		}
 
+		// 1.2.0: IsWornInSlotNamed and IsWornInSlotForm become IsWornNamed and IsWorn, their slot dropped. A form that
+		// does not cover the slot never held before and can hold now, which is said
+		std::size_t SlotlessWorn(rapidjson::Document& a_doc, std::string_view a_mod)
+		{
+			auto& allocator = a_doc.GetAllocator();
+			std::size_t changed = 0;
+			ForEachObject(a_doc, a_mod, [&](rapidjson::Value& a_object, const Where& a_where) {
+				const auto condition = StringOf(a_object, "condition");
+				const bool bNamed = condition == "IsWornInSlotNamed";
+				if (!bNamed && condition != "IsWornInSlotForm") {
+					return;
+				}
+				if (!bNamed) {
+					const auto slotIt = a_object.FindMember("Slot");
+					const auto formIt = a_object.FindMember("Form");
+					std::optional<std::uint32_t> slot;
+					if (slotIt != a_object.MemberEnd() && slotIt->value.IsObject()) {
+						if (const auto value = slotIt->value.FindMember("value"); value != slotIt->value.MemberEnd() && value->value.IsNumber()) {
+							slot = static_cast<std::uint32_t>(value->value.GetFloat());
+						}
+					}
+					const auto* armor = [&]() -> RE::TESObjectARMO* {
+						if (formIt == a_object.MemberEnd() || !formIt->value.IsObject()) {
+							return nullptr;
+						}
+						const auto plugin = StringOf(formIt->value, "pluginName");
+						const auto id = StringOf(formIt->value, "formID");
+						RE::FormID local = 0;
+						std::from_chars(id.data(), id.data() + id.size(), local, 16);
+						return Utils::LookupForm<RE::TESObjectARMO>(local, plugin);
+					}();
+					if (armor && slot && *slot < 32 && !armor->bipedModelData.bipedObjectSlots.any(static_cast<RE::BIPED_MODEL::BipedObjectSlot>(1u << *slot))) {
+						logger::warn("storage: {} '{}': IsWornInSlotForm named slot {} that {} does not cover, so it never held; as IsWorn it holds while that is worn", a_where.mod, a_where.owner, *slot + 30, armor->GetName());
+					}
+				}
+				a_object.RemoveMember("Slot");
+				a_object["condition"].SetString(bNamed ? "IsWornNamed" : "IsWorn", allocator);
+				if (const auto version = a_object.FindMember("requiredVersion"); version != a_object.MemberEnd()) {
+					version->value.SetString("1.0.0", allocator);
+				}
+				++changed;
+			});
+			return changed;
+		}
+
 		struct Step
 		{
 			REL::Version to;
@@ -133,6 +180,7 @@ namespace Migrations
 		// In order; a step only ever adds to this list
 		const std::array kSteps{
 			Step{ { 1, 1, 0 }, "random scopes to seeds"sv, &RandomScopeToSeed },
+			Step{ { 1, 2, 0 }, "IsWornInSlotNamed and IsWornInSlotForm to IsWornNamed and IsWorn"sv, &SlotlessWorn },
 		};
 	}
 

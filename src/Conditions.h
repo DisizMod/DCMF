@@ -1178,48 +1178,22 @@ namespace Conditions
 		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
 	};
 
-	// IsWornInSlotNamed and IsWornInSlotFromPlugin: what is worn in one slot, by its name or by the plugin that adds it
-	class IsWornInSlotTextCondition : public ConditionBase
+	// IsWornInSlotFromPlugin: whether what is worn in one slot comes from a plugin
+	class IsWornInSlotFromPluginCondition : public ConditionBase
 	{
 	public:
-		explicit IsWornInSlotTextCondition(bool a_bPlugin);
+		IsWornInSlotFromPluginCondition();
 
 		void PostInitialize() override;
 
 		[[nodiscard]] RE::BSString GetArgument() const override;
 
-		[[nodiscard]] RE::BSString GetName() const override { return _bPlugin ? "IsWornInSlotFromPlugin"sv.data() : "IsWornInSlotNamed"sv.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override
-		{
-			return _bPlugin ? "Checks if the ref wears an item in the specified slot that a plugin adds."sv.data() : "Checks if the ref wears an item in the specified slot with the specified name."sv.data();
-		}
+		[[nodiscard]] RE::BSString GetName() const override { return "IsWornInSlotFromPlugin"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref wears an item in the specified slot that a plugin adds."sv.data(); }
 		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
 
 		NumericConditionComponent* slotComponent;
 		TextConditionComponent* textComponent;
-
-	protected:
-		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
-
-		bool _bPlugin;
-	};
-
-	// IsWornInSlotForm: what is worn in one slot, by its form
-	class IsWornInSlotFormCondition : public ConditionBase
-	{
-	public:
-		IsWornInSlotFormCondition();
-
-		void PostInitialize() override;
-
-		[[nodiscard]] RE::BSString GetArgument() const override;
-
-		[[nodiscard]] RE::BSString GetName() const override { return "IsWornInSlotForm"sv.data(); }
-		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref wears the specified form in the specified slot."sv.data(); }
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 1, 0 }; }
-
-		NumericConditionComponent* slotComponent;
-		FormConditionComponent* formComponent;
 
 	protected:
 		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
