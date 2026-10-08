@@ -155,6 +155,16 @@ namespace Channels
 		return bEdited;
 	}
 
+	namespace
+	{
+		// An entry the draw skips: its value one the channel says it cannot use
+		bool Skipped(const PickEntry& a_entry)
+		{
+			const auto* reference = dynamic_cast<const ReferenceChannelComponent*>(a_entry.value.get());
+			return reference && reference->warningOf && !reference->value.empty() && !reference->warningOf(reference->value).empty();
+		}
+	}
+
 	bool PickList::DisplayInUI(bool a_bEditable, float a_firstColumnWidthPercent, const ValueFactory& a_factory, const PoolSource* a_pools)
 	{
 		bool bEdited = false;
@@ -245,7 +255,7 @@ namespace Channels
 					const auto count = pool ? pool->entries.size() : 0;
 					ImGui::Text("%zu %s  (%.0f%%)", count, count == 1 ? "entry" : "entries", share);
 				} else {
-					const float chance = !entry->bDisabled && total > 0.f ? entry->weight / total * 100.f : 0.f;
+					const float chance = !entry->bDisabled && !Skipped(*entry) && total > 0.f ? entry->weight / total * 100.f : 0.f;
 					ImGui::Text("%.2f  (%.0f%%)", entry->weight, chance);
 				}
 
@@ -410,7 +420,7 @@ namespace Channels
 	{
 		float total = 0.f;
 		for (const auto& entry : entries) {
-			if (entry->bDisabled) {
+			if (entry->bDisabled || (entry->pool.empty() && Skipped(*entry))) {
 				continue;
 			}
 			if (entry->pool.empty()) {

@@ -2,6 +2,7 @@
 
 #include "ModRegistry.h"
 #include "RegisteredMods.h"
+#include "Resolve.h"
 #include "Resources.h"
 #include "SkinSets.h"
 #include "apply/Entries.h"
@@ -384,6 +385,17 @@ namespace Channels
 			};
 		}
 
+		// Why a value the draw would skip is skipped: an overlay the slot cannot use, a body preset not installed
+		std::function<std::string(std::string_view)> SkipWarning(Apply::ChannelId a_id, const Apply::Entry& a_entry)
+		{
+			if (a_entry.type == Apply::ValueType::kBlendedPick) {
+				return [](std::string_view a_preset) {
+					return Resolve::PresetSliders(a_preset) ? std::string{} : std::string("Not installed: the draw skips it.");
+				};
+			}
+			return OverlayWarning(a_id, a_entry);
+		}
+
 		// A reference channel's picker: a pose point's bones, the body presets, an overlay slot's pool, the skin sets;
 		// anything else typed
 		ReferenceChannelComponent::ItemsFn ItemsFor(Apply::ChannelId a_id, const Apply::Entry& a_entry)
@@ -428,7 +440,7 @@ namespace Channels
 				return std::make_unique<HeadPartChannelComponent>("Value"sv, "The part, picked from every scanned one of the slot's type."sv, Apply::HeadPart::Slots()[a_id.GetIndex()].type);
 			}
 			auto value = std::make_unique<ReferenceChannelComponent>("Value"sv, "What the entry is, typed or picked."sv, ItemsFor(a_id, entry));
-			value->warningOf = OverlayWarning(a_id, entry);
+			value->warningOf = SkipWarning(a_id, entry);
 			return value;
 		};
 	}
@@ -453,6 +465,7 @@ namespace Channels
 			// A pose's point is a bone, picked from the human skeleton's or typed for a creature's; the body preset
 			// from every preset
 			channel = std::make_unique<ReferenceChannel>(ItemsFor(a_id, entry));
+			static_cast<ReferenceChannel*>(channel.get())->value->warningOf = SkipWarning(a_id, entry);
 			if (entry.name == "targetBone"sv || entry.name == "pairedBone"sv) {
 				auto* reference = static_cast<ReferenceChannel*>(channel.get());
 				reference->value->items = [reference, kind = a_id.GetKind()] { return TargetBones(reference, kind); };
