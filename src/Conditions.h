@@ -399,6 +399,23 @@ namespace Conditions
 		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
 	};
 
+	// IsFromPlugin: the plugin that made the actor's base NPC, a leveled actor's template's
+	class IsFromPluginCondition : public ConditionBase
+	{
+	public:
+		IsFromPluginCondition();
+
+		[[nodiscard]] RE::BSString GetArgument() const override { return textComponent->GetArgument(); }
+		[[nodiscard]] RE::BSString GetName() const override { return "IsFromPlugin"sv.data(); }
+		[[nodiscard]] RE::BSString GetDescription() const override { return "Checks if the ref's base NPC was made by a plugin."sv.data(); }
+		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 1, 2, 0 }; }
+
+		TextConditionComponent* textComponent;
+
+	protected:
+		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
+	};
+
 	class IsFemaleCondition : public ConditionBase
 	{
 	public:

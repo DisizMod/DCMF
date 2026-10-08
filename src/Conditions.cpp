@@ -451,6 +451,7 @@ namespace Conditions
 		registry.AddConditionFactory("Random"sv, []() -> ICondition* { return new RandomCondition(); });
 		registry.AddConditionFactory("IsUnique"sv, []() -> ICondition* { return new IsUniqueCondition(); });
 		registry.AddConditionFactory("IsNamed"sv, []() -> ICondition* { return new IsNamedCondition(); });
+		registry.AddConditionFactory("IsFromPlugin"sv, []() -> ICondition* { return new IsFromPluginCondition(); });
 		registry.AddConditionFactory("IsClass"sv, []() -> ICondition* { return new IsClassCondition(); });
 		registry.AddConditionFactory("IsCombatStyle"sv, []() -> ICondition* { return new IsCombatStyleCondition(); });
 		registry.AddConditionFactory("IsVoiceType"sv, []() -> ICondition* { return new IsVoiceTypeCondition(); });
@@ -573,7 +574,7 @@ namespace Conditions
 					}
 				};
 				put(kCategories[0], { "AND", "OR", "XOR", "PRESET", "TARGET", "PLAYER" });
-				put(kCategories[1], { "IsForm", "IsActorBase", "IsNamed", "IsRace", "IsClass", "IsCombatStyle", "IsVoiceType", "IsUnique", "IsFemale", "IsChild", "IsGuard", "IsSummoned", "IsGhost", "HasKeyword",
+				put(kCategories[1], { "IsForm", "IsActorBase", "IsNamed", "IsFromPlugin", "IsRace", "IsClass", "IsCombatStyle", "IsVoiceType", "IsUnique", "IsFemale", "IsChild", "IsGuard", "IsSummoned", "IsGhost", "HasKeyword",
 										"IsInFaction", "FactionRank", "Level", "HasPerk", "HasSpell", "Scale", "Height", "Weight", "HasMorph", "HasBone", "IsBodyType", "IsHeadType", "IsBodyUVLayoutType", "IsHeadUVLayoutType" });
 				put(kCategories[2], { "IsDead", "IsAttacking", "AttackState", "IsBlocking", "IsStaggered", "IsRunning", "IsSneaking", "IsSprinting", "IsSwimming", "IsInAir", "IsInCombat", "IsCombatState",
 										"IsWeaponDrawn", "IsTalking", "IsGreetingPlayer", "IsDoingFavor", "IsInScene", "IsInSpecifiedScene", "IsScenePlaying", "LifeState", "SitSleepState", "IdleTime",
@@ -2519,6 +2520,13 @@ namespace Conditions
 		}
 	}
 
+	IsFromPluginCondition::IsFromPluginCondition()
+	{
+		textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the loaded plugins.");
+		textComponent->SetAllowSpaces(true);
+		SetPluginPicker(textComponent);
+	}
+
 	IsWornFromPluginCondition::IsWornFromPluginCondition()
 	{
 		textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the loaded plugins.");
@@ -3865,6 +3873,26 @@ namespace Conditions
 		}
 		const std::string text = textComponent->GetTextValue().c_str();
 		return text.empty() ? a_builder.False() : a_builder.HasAny(a_builder.ResourceSet(_definition->resource), { Resources::TextKey(text) });
+	}
+
+	Program::Expr IsFromPluginCondition::Compile(Program::Builder& a_builder) const
+	{
+		const auto plugin = std::string(textComponent->GetTextValue().c_str());
+		if (plugin.empty()) {
+			return a_builder.False();
+		}
+		// The plugin that made the base NPC; a leveled actor's base is made in game, so its template's
+		const auto key = BuiltinResources::TextSet("dcmf.basePlugin", "The plugin that made the actor's base NPC.", [](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
+			auto* actor = ActorOf(a_refr);
+			auto* base = actor ? actor->GetActorBase() : nullptr;
+			if (base && base->IsDynamicForm()) {
+				base = actor->GetTemplateBase();
+			}
+			if (const auto* file = base ? base->GetFile(0) : nullptr) {
+				a_out.emplace_back(file->GetFilename());
+			}
+		}, 5.f);
+		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(plugin) });
 	}
 
 	Program::Expr IsNamedCondition::Compile(Program::Builder& a_builder) const
