@@ -40,7 +40,9 @@ config parsing and the editor UI are derived from OAR's: among them
 `StateData.h`, `RegisteredMods` (from `ReplacerMods`), `UIHooks` (from
 `Hooks`), and in `UI/` `UIManager`, `UIWindow`, `UIMain`, `UICommon`,
 `UIComboFilter.h`, `UIErrorBanner`, `UIWelcomeBanner` and `UIModifierLog`
-(from `UIAnimationLog`).
+(from `UIAnimationLog`). `AnimationPlay`, the editor's Play, is ported from
+OAR's `FakeClipGenerator` and `ActiveAnimationPreview`, with the engine offsets
+OAR's `Offsets.h` gives them.
 
 ### Mfg Fix NG
 
