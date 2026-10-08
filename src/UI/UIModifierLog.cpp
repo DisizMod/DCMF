@@ -244,7 +244,8 @@ namespace UI
 				// What plays, is active or cannot play open; what failed or is off closed
 				const bool bOpenFirst = section == Section::kPlaying || section == Section::kActive || section == Section::kBlocked;
 				if (ImGui::TreeNodeEx(title, ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_Framed | (bOpenFirst ? ImGuiTreeNodeFlags_DefaultOpen : 0), "%s (%zu)", title, shown)) {
-					for (const auto& step : a_trace.steps) {
+					// The lowest priority on top, the highest at the bottom
+					for (const auto& step : a_trace.steps | std::views::reverse) {
 						if (step.section == section && Shown(step)) {
 							DrawTraceStep(step);
 						}
