@@ -416,7 +416,7 @@ namespace Functions
 			}
 		}
 		const bool bSent = vm->DispatchMethodCall1(object, "Say"sv, args, callback);
-		const char* editorID = said->GetFormEditorID();
+		const char* editorID = Utils::EditorID(said);
 		logger::info("PlayDialogue: Say topic {:08X} '{}' on {:08X} {}: {} of its {} line(s) open to the speaker, judged on who it is", said->GetFormID(), editorID ? editorID : "", a_refr->GetFormID(), bSent ? "sent" : "not sent, the VM refused the call", passing, said->numTopicInfos);
 		return bSent;
 	}

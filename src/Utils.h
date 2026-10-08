@@ -21,6 +21,9 @@ namespace Utils
 		kAnyTarget
 	};
 
+	// A form's editor ID: the game's, else powerofthree's Tweaks' when it keeps them; empty when neither has one
+	[[nodiscard]] const char* EditorID(const RE::TESForm* a_form);
+
 	[[nodiscard]] std::string_view TrimWhitespace(std::string_view a_s);
 	[[nodiscard]] std::string_view TrimQuotes(std::string_view a_s);
 	[[nodiscard]] std::string_view TrimSquareBrackets(std::string_view a_s);

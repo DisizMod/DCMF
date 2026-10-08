@@ -203,11 +203,11 @@ namespace Components
 				case RE::FormType::Global:
 					{
 						const auto global = reinterpret_cast<RE::TESGlobal*>(_form);
-						return std::format("{} ({})", global->value, global->GetFormEditorID());
+						return std::format("{} ({})", global->value, Utils::EditorID(global));
 					}
 				case RE::FormType::Keyword:
 				case RE::FormType::LocationRefType:
-					return _form->GetFormEditorID();
+					return Utils::EditorID(_form);
 				default:
 					return Utils::GetFormNameString(_form);
 				}
@@ -910,7 +910,7 @@ namespace Components
 
 			case Type::kForm:
 				if (_keywordForm.IsValid()) {
-					return _keywordForm.GetValue()->GetFormEditorID();
+					return Utils::EditorID(_keywordForm.GetValue());
 				}
 
 			default:

@@ -207,11 +207,29 @@ namespace Utils
 		return a_entry.is_regular_file();
 	}
 
+	const char* EditorID(const RE::TESForm* a_form)
+	{
+		if (!a_form) {
+			return "";
+		}
+		if (const char* own = a_form->GetFormEditorID(); own && *own) {
+			return own;
+		}
+		// The game keeps few types' editor IDs; po3's Tweaks keeps every one, and says so through this export
+		using GetFormEditorID_t = const char* (*)(std::uint32_t);
+		static const auto kept = [] {
+			const auto module = GetModuleHandleW(L"po3_Tweaks.dll");
+			return module ? reinterpret_cast<GetFormEditorID_t>(GetProcAddress(module, "GetFormEditorID")) : nullptr;
+		}();
+		const char* tweaks = kept ? kept(a_form->GetFormID()) : nullptr;
+		return tweaks ? tweaks : "";
+	}
+
 	std::string GetFormNameString(const RE::TESForm* a_form)
 	{
 		if (a_form) {
 			std::string name = a_form->GetName();
-			std::string editorID = a_form->GetFormEditorID();
+			std::string editorID = EditorID(a_form);
 			if (!editorID.empty()) {
 				if (!name.empty()) {
 					return std::format("{} ({})", name, editorID);
@@ -251,7 +269,7 @@ namespace Utils
 					} else {
 						keywords += ", ";
 					}
-					keywords += keyword->GetFormEditorID();
+					keywords += EditorID(keyword);
 				}
 			}
 		}

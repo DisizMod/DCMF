@@ -137,13 +137,13 @@ namespace Triggers
 		if (!quest || quest->IsRunning()) {
 			return {};
 		}
-		const char* name = quest->GetFormEditorID();
+		const char* name = Utils::EditorID(quest);
 		return std::format("Its quest, {}, is not running.", name && *name ? name : std::format("{:08X}", quest->GetFormID()));
 	}
 
 	std::string TopicLabel(const RE::TESTopic* a_topic)
 	{
-		std::string_view name = a_topic->GetFormEditorID();
+		std::string_view name = Utils::EditorID(a_topic);
 		if (name.empty()) {
 			name = a_topic->GetName();
 		}
@@ -166,7 +166,7 @@ namespace Triggers
 				if (!topic || topic->numTopicInfos == 0) {
 					continue;
 				}
-				std::string_view name = topic->GetFormEditorID();
+				std::string_view name = Utils::EditorID(topic);
 				if (name.empty()) {
 					name = topic->GetName();
 				}

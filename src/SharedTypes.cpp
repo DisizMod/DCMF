@@ -33,7 +33,7 @@ namespace Components
 			const std::uint32_t order = file ? file->GetPartialIndex() : 0xFFFFFFFF;
 			const auto localID = !file ? formID : file->IsLight() ? (formID & 0xFFF) : (formID & 0xFFFFFF);
 
-			std::string_view name = a_form->GetFormEditorID();
+			std::string_view name = Utils::EditorID(a_form);
 			if (name.empty()) {
 				name = a_form->GetName();
 			}
@@ -140,7 +140,7 @@ namespace Components
 					if (const auto name = base->GetName(); name && *name) {
 						return name;
 					}
-					if (const auto editorID = base->GetFormEditorID(); editorID && *editorID) {
+					if (const auto editorID = Utils::EditorID(base); editorID && *editorID) {
 						return editorID;
 					}
 				}
@@ -149,7 +149,7 @@ namespace Components
 			if (const auto name = a_form->GetName(); name && *name) {
 				return name;
 			}
-			const auto editorID = a_form->GetFormEditorID();
+			const auto editorID = Utils::EditorID(a_form);
 			return editorID ? editorID : "";
 		}
 	}
@@ -597,7 +597,7 @@ namespace Components
 		case Type::kGlobalVariable:
 			{
 				if (_globalVariable.IsValid()) {
-					return _globalVariable.GetValue()->GetFormEditorID();
+					return Utils::EditorID(_globalVariable.GetValue());
 				}
 				return "(Not found)";
 			}
