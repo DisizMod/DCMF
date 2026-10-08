@@ -327,7 +327,8 @@ namespace BuiltinResources
 
 	std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds)
 	{
-		const auto refresh = a_intervalSeconds > 0.f ? Resources::Refresh::Interval : Resources::Refresh::EveryTick;
+		// A negative interval: read once per actor and held
+		const auto refresh = a_intervalSeconds < 0.f ? Resources::Refresh::Invalidated : a_intervalSeconds > 0.f ? Resources::Refresh::Interval : Resources::Refresh::EveryTick;
 		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::TextSet, Resources::Scope::Actor, refresh, a_intervalSeconds, [&](FunctionGatherer& a_gatherer) { a_gatherer.texts = std::move(a_read); });
 	}
 

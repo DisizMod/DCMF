@@ -3826,7 +3826,7 @@ namespace Conditions
 		if (plugin.empty()) {
 			return a_builder.False();
 		}
-		// The plugin that made the base NPC; a leveled actor's base is made in game, so its template's
+		// The plugin that made the base NPC, read once per actor; a leveled actor's base is made in game, so its template's
 		const auto key = BuiltinResources::TextSet("dcmf.basePlugin", "The plugin that made the actor's base NPC.", [](RE::TESObjectREFR* a_refr, std::vector<std::string>& a_out) {
 			auto* actor = ActorOf(a_refr);
 			auto* base = actor ? actor->GetActorBase() : nullptr;
@@ -3836,7 +3836,7 @@ namespace Conditions
 			if (const auto* file = base ? base->GetFile(0) : nullptr) {
 				a_out.emplace_back(file->GetFilename());
 			}
-		}, 5.f);
+		}, -1.f);
 		return a_builder.HasAny(a_builder.ResourceSet(key), { Resources::TextKey(plugin) });
 	}
 

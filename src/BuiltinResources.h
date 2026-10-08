@@ -33,6 +33,7 @@ namespace BuiltinResources
 	[[nodiscard]] std::string Number(std::string a_key, std::string_view a_description, std::function<float(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor);
 	[[nodiscard]] std::string Form(std::string a_key, std::string_view a_description, std::function<RE::TESForm*(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor);
 	[[nodiscard]] std::string FormSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<RE::FormID>&)> a_read, float a_intervalSeconds = 0.f);
+	// A negative interval reads once per actor and holds it
 	[[nodiscard]] std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds = 0.f);
 	// A number drawn between the two for each actor from the seed; with the seed's say, again each time a clip that
 	// resets the key loops or echoes on the actor
