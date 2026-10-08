@@ -134,7 +134,6 @@ namespace AnimationPlay
 			bool pingPongBackward = false;  // 106
 
 			RE::hkRefPtr<RE::hkbBehaviorGraph> behaviorGraph;
-			std::vector<std::int32_t> cameraBones;  // the skeleton's camera bones, found at the first pose
 
 			RE::hkbClipGenerator* AsClip() { return reinterpret_cast<RE::hkbClipGenerator*>(this); }
 
@@ -255,24 +254,6 @@ namespace AnimationPlay
 				std::vector<RE::hkQsTransform> converted(static_cast<std::size_t>(poseCount));
 				ConvertPose()(tracks, sampled.data(), poseCount, converted.data(), &scratch, bind->transformTrackToBoneIndices, bind->blendHint.get() == RE::hkaAnimationBinding::BlendHint::kAdditive, mirrored, true);
 
-				// The camera bones the graph's: a killmove's own camera track would take the player's camera
-				if (cameraBones.empty()) {
-					const auto* skeleton = a_context.character->setup ? a_context.character->setup->animationSkeleton.get() : nullptr;
-					for (std::int32_t i = 0; skeleton && i < static_cast<std::int32_t>(skeleton->bones.size()); ++i) {
-						const char* name = skeleton->bones[i].name.c_str();
-						if (name && std::string_view(name).starts_with("Camera")) {
-							cameraBones.push_back(i);
-						}
-					}
-					if (cameraBones.empty()) {
-						cameraBones.push_back(-1);  // looked, none
-					}
-				}
-				for (const auto bone : cameraBones) {
-					if (bone >= 0 && bone < poseCount) {
-						converted[static_cast<std::size_t>(bone)] = poseOut[bone];
-					}
-				}
 				const auto blend = (std::min)(static_cast<std::int32_t>(poseCount), tracks);
 				BlendPoses()(static_cast<std::uint32_t>(blend), converted.data(), poseOut, 0.f, poseOut);
 			}
