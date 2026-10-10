@@ -438,15 +438,19 @@ namespace ActorState
 				}
 				// SMP's body: the modifiers alone, taken once none is mid-transition, else what it was
 				std::optional<Timing::Scope> smpScope(std::in_place, smpTime);
-				if (Settings::bPatchSmpBodyCollision && Settings::bSmpInstalled) {
+				const bool bSmp = Settings::bPatchSmpBodyCollision && Settings::bSmpInstalled;
+				if (bSmp || (Settings::bPatchCbpc && Settings::bCbpcInstalled)) {
 					if (Resolve::Settled(*state, Resolve::Now())) {
 						auto body = sampled->numbers[static_cast<std::size_t>(Apply::Kind::kBodyMorph)];
 						AddPreset(body, state->smpPreset, sampled->presetSliders, Resolve::BodyWeight(*sampled, refr.get()), sampled->presetTakenOff);
 						std::ranges::sort(body, {}, &Apply::NumberSample::index);
-						sampled->smpBody = std::move(body);
+						sampled->settledBody = std::move(body);
 					} else {
 						const auto previous = state->sampled.With([](const auto& a_sampled) { return a_sampled; });
-						sampled->smpBody = previous && previous->smpBody ? previous->smpBody : std::vector<Apply::NumberSample>{};
+						sampled->settledBody = previous && previous->settledBody ? previous->settledBody : std::vector<Apply::NumberSample>{};
+					}
+					if (bSmp) {
+						sampled->smpBody = sampled->settledBody;
 					}
 				}
 				smpScope.reset();

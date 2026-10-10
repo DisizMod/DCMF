@@ -29,6 +29,7 @@ add_commonlibsse_plugin(DCMF
     apply/Entries.cpp
     apply/Applier.cpp
     apply/BodyMorph.cpp
+    apply/Cbpc.cpp
     apply/FaceMorph.cpp
     apply/Bone.cpp
     apply/Mfg.cpp
@@ -69,6 +70,7 @@ add_commonlibsse_plugin(DCMF
     UI/UIWelcomeBanner.cpp
     UI/UIScanProgress.cpp
     UI/MeshThumbs.cpp
+    UI/ColliderDraw.cpp
     scan/Scan.cpp
     scan/HeadPartSources.cpp
     scan/FaceMorphSources.cpp
@@ -145,6 +147,8 @@ if(DCMF_DEPLOY_DIR)
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.bones.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/DCMF/"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/NeCoco.bodytypes.json" "${DCMF_DEPLOY_DIR}/SKSE/Plugins/DCMF/"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/../dist/DCMF.esp" "${DCMF_DEPLOY_DIR}/"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory
                 "${CMAKE_CURRENT_SOURCE_DIR}/../dist/Scripts" "${DCMF_DEPLOY_DIR}/Scripts"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory

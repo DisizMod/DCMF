@@ -3,6 +3,7 @@
 #include "ModRegistry.h"
 #include "apply/Applier.h"
 #include "Settings.h"
+#include "UI/ColliderDraw.h"
 #include "UI/MeshThumbs.h"
 #include "UI/UIManager.h"
 
@@ -62,6 +63,7 @@ namespace UIHooks
 		Apply::Upload();
 		if (const auto* renderManager = RE::BSGraphics::Renderer::GetSingleton()) {
 			UI::MeshThumbs::Advance(reinterpret_cast<ID3D11Device*>(renderManager->GetRuntimeData().forwarder), reinterpret_cast<ID3D11DeviceContext*>(renderManager->GetRuntimeData().context));
+			UI::ColliderDraw::Draw(reinterpret_cast<ID3D11Device*>(renderManager->GetRuntimeData().forwarder), reinterpret_cast<ID3D11DeviceContext*>(renderManager->GetRuntimeData().context));
 		}
 		UI::UIManager::GetSingleton().Render();
 	}

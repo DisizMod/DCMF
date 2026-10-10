@@ -3,6 +3,7 @@
 #include "ActorState.h"
 #include "ActorProperty.h"
 #include "BodyMorph.h"
+#include "Cbpc.h"
 #include "Bone.h"
 #include "FaceMorph.h"
 #include "HeadPart.h"
@@ -51,9 +52,14 @@ namespace Apply
 
 	void RunUpdate()
 	{
-		ActorState::ForEach([](ActorState::State& a_state) { Run(Pass::kUpdate, a_state); });
+		Cbpc::Frame();
+		ActorState::ForEach([](ActorState::State& a_state) {
+			Run(Pass::kUpdate, a_state);
+			Cbpc::Update(a_state);
+		});
 		for (const auto& retired : ActorState::TakeRetired()) {
 			Run(Pass::kUpdate, *retired);
+			Cbpc::Release(*retired);
 		}
 	}
 

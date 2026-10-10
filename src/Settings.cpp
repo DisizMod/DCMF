@@ -96,6 +96,13 @@ void Settings::ReadSettings()
 		if (bPatchMenuStudioChosen) {
 			ReadBoolSetting(ini, "Patches", "bPatchMenuStudio", bPatchMenuStudio);
 		}
+		ReadBoolSetting(ini, "Patches", "bPatchCbpcChosen", bPatchCbpcChosen);
+		if (bPatchCbpcChosen) {
+			ReadBoolSetting(ini, "Patches", "bPatchCbpc", bPatchCbpc);
+		}
+		ReadFloatSetting(ini, "Patches", "fPatchCbpcSkinOffset", fPatchCbpcSkinOffset);
+		ReadFloatSetting(ini, "Patches", "fPatchCbpcBreastOffset", fPatchCbpcBreastOffset);
+		ReadBoolSetting(ini, "Patches", "bDrawCBPCColliders", bDrawCBPCColliders);
 
 		// UI
 		ReadBoolSetting(ini, "UI", "bEnableUI", bEnableUI);
@@ -190,6 +197,11 @@ void Settings::WriteSettings()
 	ini.SetBoolValue("Patches", "bPatchSmpBodyCollision", bPatchSmpBodyCollision);
 	ini.SetBoolValue("Patches", "bPatchMenuStudioChosen", bPatchMenuStudioChosen);
 	ini.SetBoolValue("Patches", "bPatchMenuStudio", bPatchMenuStudio);
+	ini.SetBoolValue("Patches", "bPatchCbpcChosen", bPatchCbpcChosen);
+	ini.SetBoolValue("Patches", "bPatchCbpc", bPatchCbpc);
+	ini.SetDoubleValue("Patches", "fPatchCbpcSkinOffset", fPatchCbpcSkinOffset);
+	ini.SetDoubleValue("Patches", "fPatchCbpcBreastOffset", fPatchCbpcBreastOffset);
+	ini.SetBoolValue("Patches", "bDrawCBPCColliders", bDrawCBPCColliders);
 
 	// UI
 	ini.SetBoolValue("UI", "bEnableUI", bEnableUI);
@@ -248,4 +260,11 @@ void Settings::ApplyLoadOrderDefaults()
 		bPatchMenuStudio = bMenuStudioInstalled;
 	}
 	logger::info("patches: Menu Studio {}, its inventory patch {}{}", bMenuStudioInstalled ? "found" : "not found", bPatchMenuStudio ? "on" : "off", bPatchMenuStudioChosen ? " by the user's choice" : "");
+
+	// CBPC's fitted colliders: on when CBPC is loaded, unless the user chose
+	bCbpcInstalled = GetModuleHandleW(L"cbp.dll") != nullptr;
+	if (!bPatchCbpcChosen) {
+		bPatchCbpc = bCbpcInstalled;
+	}
+	logger::info("patches: CBPC {}, its fitted collider patch {}{}", bCbpcInstalled ? "found" : "not found", bPatchCbpc ? "on" : "off", bPatchCbpcChosen ? " by the user's choice" : "");
 }

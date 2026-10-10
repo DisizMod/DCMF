@@ -64,6 +64,14 @@ struct Settings
 	static inline bool bPatchMenuStudio = false;
 	static inline bool bPatchMenuStudioChosen = false;  // set by the user, kept over what the load order says
 	static inline bool bMenuStudioInstalled = false;    // MenuStudio.dll loaded
+	// CBPC's colliders fitted to each driven actor's body, DCMF's own collision config in place of the others for females
+	static inline bool bPatchCbpc = false;
+	static inline bool bPatchCbpcChosen = false;  // set by the user, kept over what the load order says
+	static inline bool bCbpcInstalled = false;    // cbp.dll loaded
+	static inline float fPatchCbpcSkinOffset = 0.f;    // game units every collider but the breasts' grows by, or shrinks by when negative
+	static inline float fPatchCbpcBreastOffset = 0.f;  // the same for the breasts' colliders
+	// The CBPC colliders DCMF places, drawn over the scene
+	static inline bool bDrawCBPCColliders = false;
 
 	// UI
 	static inline bool bEnableUI = true;

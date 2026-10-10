@@ -94,7 +94,7 @@ namespace Apply
 		std::uint32_t vertexCount = 0;
 		std::uint32_t stride = 0;
 		bool bHalves = true;
-		std::vector<std::uint8_t> base;  // the whole vertex array, as loaded
+		std::shared_ptr<const std::vector<std::uint8_t>> base;  // the whole vertex array, as loaded; shared with a reader off the main thread
 
 		// Two working copies: the one the render thread uploads is left alone while the next is summed into the other
 		std::shared_ptr<std::vector<std::uint8_t>> work[2];

@@ -17,6 +17,7 @@
 #include "MeshThumbs.h"
 #include "../scan/Scan.h"
 #include "../ClipPlayer.h"
+#include "../apply/Cbpc.h"
 #include "../ModifierLog.h"
 #include "../Preview.h"
 #include "../Resources.h"
@@ -5691,6 +5692,60 @@ namespace UI
 		drawPatch("menuStudio", "Menu Studio: modifiers run in the inventory", Settings::bPatchMenuStudio, Settings::bPatchMenuStudioChosen, Settings::bMenuStudioInstalled, "MenuStudio.dll found", "MenuStudio.dll not found",
 			"The inventory pauses the game, and DCMF stops while the game is paused, so an item equipped or removed there changes nothing until the menu closes. Menu Studio shows the character in the inventory; with this on, DCMF keeps running while the inventory is open, so the conditions see the equip and the transitions play. Every other paused menu still stops it. On by itself when Menu Studio is loaded, until you toggle it.",
 			nullptr, nullptr);
+
+
+		drawPatch("cbpc", "CBPC: colliders fitted to the body", Settings::bPatchCbpc, Settings::bPatchCbpcChosen, Settings::bCbpcInstalled, "cbp.dll found", "cbp.dll not found",
+			"CBPC places its colliders from a config tuned by hand for one body, so on any other preset they float off the skin or sink into it. With this on, DCMF fits a sphere or a capsule on each of the breasts, the butt, the belly, the head, the arms, the hands, the legs and the feet to each driven female's own mesh, as the modifiers shape it once none is mid-transition, and gives them to CBPC; again when CBPC drops them, as on a cell change. While this is on, DCMF writes its own collision config, holding no collider of its own, for the females it fits, which DCMF.esp's faction marks; every other actor keeps CBPC's own. DCMF.esp must be active. On by itself when CBPC is loaded, until you toggle it.",
+			[&]() {
+				ImGui::Separator();
+				ImGui::SetNextItemWidth(UICommon::FirstColumnWidth(_firstColumnWidthPercent));
+				if (ImGui::SliderFloat("##cbpcSkinOffset", &Settings::fPatchCbpcSkinOffset, -3.f, 3.f, "%.2f", ImGuiSliderFlags_AlwaysClamp)) {
+					Settings::WriteSettings();
+				}
+				UICommon::SecondColumn(_firstColumnWidthPercent);
+				ImGui::TextUnformatted("Body offset");
+				ImGui::SameLine();
+				UICommon::HelpMarker("Game units every collider but the breasts' is grown by past the skin, or shrunk by under it when negative.");
+				ImGui::Separator();
+				ImGui::SetNextItemWidth(UICommon::FirstColumnWidth(_firstColumnWidthPercent));
+				if (ImGui::SliderFloat("##cbpcBreastOffset", &Settings::fPatchCbpcBreastOffset, -3.f, 3.f, "%.2f", ImGuiSliderFlags_AlwaysClamp)) {
+					Settings::WriteSettings();
+				}
+				UICommon::SecondColumn(_firstColumnWidthPercent);
+				ImGui::TextUnformatted("Breast offset");
+				ImGui::SameLine();
+				UICommon::HelpMarker("Game units the breasts' colliders are grown by past the skin, or shrunk by under it when negative.");
+				ImGui::Separator();
+				if (ImGui::Checkbox("Draw the colliders", &Settings::bDrawCBPCColliders)) {
+					Settings::WriteSettings();
+				}
+				ImGui::SameLine();
+				UICommon::HelpMarker("Draws the fitted colliders over the scene: blue the parts that push, orange the parts pushed, and white dots where the breast bones are. Where the body hides one it is drawn faint.");
+				ImGui::Separator();
+				// TODO: temporary, to compare the fit with hand-made configs
+				if (ImGui::Button("Write fit for comparison")) {
+					Apply::Cbpc::WriteComparison();
+				}
+				ImGui::Separator();
+				{
+					const auto& presets = Apply::Cbpc::HotSwapPresets();
+					int pick = Apply::Cbpc::HotSwapPick();
+					ImGui::SetNextItemWidth(UICommon::FirstColumnWidth(_firstColumnWidthPercent));
+					if (ImGui::SliderInt("##hotswapPreset", &pick, 0, static_cast<int>(presets.size()), pick == 0 ? "None" : presets[static_cast<std::size_t>(pick - 1)].c_str(), ImGuiSliderFlags_AlwaysClamp)) {
+						Apply::Cbpc::SetHotSwapPick(pick);
+					}
+					UICommon::SecondColumn(_firstColumnWidthPercent);
+					ImGui::TextUnformatted("HotSwap preset drawn");
+					ImGui::SameLine();
+					UICommon::HelpMarker("Draws a HotSwap preset's colliders on the player in green, at the player's weight, beside the fitted ones.");
+				}
+				ImGui::Separator();
+			},
+			[]() {
+				Settings::fPatchCbpcSkinOffset = 0.f;
+				Settings::fPatchCbpcBreastOffset = 0.f;
+				Settings::bDrawCBPCColliders = false;
+			});
 	}
 
 	bool UIMain::DrawSkinSet(RegisteredMod* a_registeredMod, Skins::Set* a_set, bool& a_bOutWasRenamed)

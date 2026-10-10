@@ -3,6 +3,7 @@
 #include "BodyTypes.h"
 #include "Hook.h"
 #include "apply/Applier.h"
+#include "apply/Cbpc.h"
 #include "apply/DynamicData.h"
 #include "mfgfix/MfgFix.h"
 #include "ClipPlayer.h"
@@ -84,6 +85,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 
 	Settings::Initialize();
 	Settings::ReadSettings();
+	// Before CBPC reads its configs, at the game's data loaded
+	Apply::Cbpc::SyncConfigFile();
 
 	// Mfg Fix's job is ours: said when it is loaded beside us, and its scripts' natives answered when it is not
 	MfgFix::Detect();

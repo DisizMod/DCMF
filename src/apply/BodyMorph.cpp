@@ -471,9 +471,9 @@ namespace Apply
 				shape.bHalves = PositionsAreHalves(first.buffData->vertexDesc);
 
 				const auto bytes = static_cast<std::size_t>(shape.vertexCount) * shape.stride;
-				shape.base.assign(first.buffData->rawVertexData, first.buffData->rawVertexData + bytes);
-				shape.work[0] = std::make_shared<std::vector<std::uint8_t>>(shape.base);
-				shape.work[1] = std::make_shared<std::vector<std::uint8_t>>(shape.base);
+				shape.base = std::make_shared<const std::vector<std::uint8_t>>(first.buffData->rawVertexData, first.buffData->rawVertexData + bytes);
+				shape.work[0] = std::make_shared<std::vector<std::uint8_t>>(*shape.base);
+				shape.work[1] = std::make_shared<std::vector<std::uint8_t>>(*shape.base);
 				shape.moved[0].assign(shape.vertexCount, 0);
 				shape.moved[1].assign(shape.vertexCount, 0);
 
@@ -527,7 +527,7 @@ namespace Apply
 			// Every vertex moved in this copy goes back to base first, then each morph adds its share
 			for (std::uint32_t v = 0; v < a_shape.vertexCount; ++v) {
 				if (moved[v]) {
-					std::memcpy(work.data() + v * a_shape.stride, a_shape.base.data() + v * a_shape.stride, a_shape.bHalves ? 6 : 12);
+					std::memcpy(work.data() + v * a_shape.stride, a_shape.base->data() + v * a_shape.stride, a_shape.bHalves ? 6 : 12);
 					moved[v] = 0;
 				}
 			}
@@ -572,7 +572,7 @@ namespace Apply
 						skin->skinPartition = a_shape.partition;
 						// What the GPU of the bound partition last had of ours goes back to base
 						std::scoped_lock lock(g_pendingLock);
-						g_pending.push_back({ a_shape.partition, std::make_shared<std::vector<std::uint8_t>>(a_shape.base) });
+						g_pending.push_back({ a_shape.partition, std::make_shared<std::vector<std::uint8_t>>(*a_shape.base) });
 					}
 					a_shape.own.reset();
 				}
@@ -608,7 +608,7 @@ namespace Apply
 				}
 				skin->skinPartition = a_shape.own;
 			}
-			const auto bytes = a_shape.base.size();
+			const auto bytes = a_shape.base->size();
 			std::vector<std::uint8_t*> targets;
 			auto* partition = a_shape.own.get();
 			for (std::uint32_t i = 0; i < partition->numPartitions; ++i) {
@@ -618,7 +618,7 @@ namespace Apply
 				}
 			}
 			for (auto* target : targets) {
-				std::memcpy(target, a_shape.base.data(), bytes);
+				std::memcpy(target, a_shape.base->data(), bytes);
 			}
 
 			const auto& morphs = (*a_shape.tri)[a_shape.shape].morphs;
@@ -793,6 +793,85 @@ namespace Apply
 			a_data.bWritten = true;
 			NextMorphGeneration(refr->GetFormID());
 		});
+	}
+
+	std::optional<BodyMorph::Morphable> BodyMorph::MorphableOf(const RE::BSGeometry* a_geometry, std::uint32_t a_vertexCount)
+	{
+		const auto path = BodyTriPathOf(a_geometry);
+		if (path.empty()) {
+			return std::nullopt;
+		}
+		const auto loaded = LoadTri(path);
+		std::optional<std::size_t> index;
+		for (std::size_t i = 0; i < loaded->size(); ++i) {
+			if (SameName((*loaded)[i].name, a_geometry->name.c_str())) {
+				index = i;
+				break;
+			}
+		}
+		// A file with one shape can only mean that one, when the vertex count says it fits
+		if (!index && loaded->size() == 1) {
+			std::uint32_t highest = 0;
+			for (const auto& morph : loaded->front().morphs) {
+				for (const auto& delta : morph.deltas) {
+					highest = (std::max)(highest, delta.index);
+				}
+			}
+			if (highest < a_vertexCount) {
+				index = 0;
+			}
+		}
+		if (!index) {
+			return std::nullopt;
+		}
+		Morphable out{ .tri = loaded, .shape = *index };
+		auto& entries = Entries::GetSingleton();
+		const auto& morphs = (*loaded)[*index].morphs;
+		for (std::uint32_t i = 0; i < morphs.size(); ++i) {
+			if (const auto id = entries.Find(Kind::kBodyMorph, morphs[i].name); id.IsValid()) {
+				out.morphs.emplace_back(id.GetIndex(), i);
+			}
+		}
+		std::ranges::sort(out.morphs);
+		return out;
+	}
+
+	float BodyMorph::Half(std::uint16_t a_half)
+	{
+		return HalfToFloat(a_half);
+	}
+
+	void BodyMorph::ReadVertexPosition(const std::uint8_t* a_vertex, bool a_bHalves, float& a_x, float& a_y, float& a_z)
+	{
+		ReadPosition(a_vertex, a_bHalves, a_x, a_y, a_z);
+	}
+
+	void BodyMorph::MorphedPositions(const BodyMorphShape& a_shape, const std::vector<NumberSample>& a_weights, std::vector<RE::NiPoint3>& a_out)
+	{
+		a_out.resize(a_shape.vertexCount);
+		for (std::uint32_t v = 0; v < a_shape.vertexCount; ++v) {
+			ReadPosition(a_shape.base->data() + static_cast<std::size_t>(v) * a_shape.stride, a_shape.bHalves, a_out[v].x, a_out[v].y, a_out[v].z);
+		}
+		const auto& morphs = (*a_shape.tri)[a_shape.shape].morphs;
+		auto weight = a_weights.begin();
+		for (const auto& [index, morph] : a_shape.morphs) {
+			while (weight != a_weights.end() && weight->index < index) {
+				++weight;
+			}
+			if (weight == a_weights.end()) {
+				break;
+			}
+			if (weight->index != index || weight->value == 0.f) {
+				continue;
+			}
+			for (const auto& delta : morphs[morph].deltas) {
+				if (delta.index < a_shape.vertexCount) {
+					a_out[delta.index].x += delta.x * weight->value;
+					a_out[delta.index].y += delta.y * weight->value;
+					a_out[delta.index].z += delta.z * weight->value;
+				}
+			}
+		}
 	}
 
 	void BodyMorph::Upload()

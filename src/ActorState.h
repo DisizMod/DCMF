@@ -87,6 +87,7 @@ namespace ActorState
 		bool bAPose = false;      // the preview's Hold A pose: every skeleton bone on its rest, the arms down
 		std::string presetName;   // the highest modifier's body preset, as it was drawn; what the Actor window shows
 		std::optional<std::vector<Apply::NumberSample>> smpBody;  // the body SMP collides with: the modifiers' morphs and preset alone, held while one is mid-transition; none when the patch is off
+		std::optional<std::vector<Apply::NumberSample>> settledBody;  // the same body, taken for the SMP or the CBPC patch; none when both are off
 	};
 
 	// What the Actor window holds on the actor, over what the modifiers set
