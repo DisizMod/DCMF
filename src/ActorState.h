@@ -297,5 +297,9 @@ namespace ActorState
 	// Any thread, for the hooks: the actor whose skeleton root or face animation this is. A retired actor stays
 	// findable for a few frames, so a pass that wrote to it can take its write back.
 	[[nodiscard]] std::shared_ptr<State> FindByRoot(const RE::NiAVObject* a_root);
+
+	// From the actor's own update: its parts read again at once when its 3D changed since the frame began, as when armor is
+	// attached after the frame's start; true when they were
+	bool RefreshParts(State& a_state);
 	[[nodiscard]] std::shared_ptr<State> FindByAnimationData(const void* a_animationData);
 }

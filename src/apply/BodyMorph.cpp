@@ -676,8 +676,29 @@ namespace Apply
 		}
 	}
 
-	void BodyMorph::Apply(Pass, ActorState::State& a_state)
+	void BodyMorph::Apply(Pass a_pass, ActorState::State& a_state)
 	{
+		// The main thread, known from the frame's own pass, where the GPU may be written at once
+		static std::atomic<std::thread::id> mainThread;
+		if (a_pass == Pass::kUpdate) {
+			mainThread = std::this_thread::get_id();
+		}
+		// After animation, only when the 3D changed since the frame began: new armor written before it is drawn
+		const bool bLate = a_pass == Pass::kFadeNode;
+		if (bLate && !ActorState::RefreshParts(a_state)) {
+			return;
+		}
+		struct UploadAfter
+		{
+			bool bNow;
+			~UploadAfter()
+			{
+				if (bNow) {
+					Upload();
+				}
+			}
+		} uploadAfter{ bLate && std::this_thread::get_id() == mainThread.load() };
+
 		const auto refr = a_state.handle.get();
 		auto* root = refr ? refr->Get3D(false) : nullptr;
 		const auto parts = a_state.parts.With([](const auto& a_parts) { return a_parts; });

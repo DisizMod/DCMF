@@ -46,6 +46,8 @@ namespace Apply
 			return bit(Pass::kFadeNode);
 		case Kind::kOverlay:
 			return bit(Pass::kUpdate) | bit(Pass::kFaceNode);  // built and written on the main thread, a face clone's block followed after the face animates
+		case Kind::kBodyMorph:
+			return bit(Pass::kUpdate) | bit(Pass::kFadeNode);  // again after animation when the actor's 3D changed since the frame began, as on an equip
 		default:
 			return bit(Pass::kUpdate);
 		}

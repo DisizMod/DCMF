@@ -88,7 +88,7 @@ namespace ActorState
 		std::mutex g_dirtyLock;
 		std::unordered_set<const void*> g_dirty;
 		uint32_t g_watched = 0;
-		uint32_t g_generation = 0;
+		std::atomic<uint32_t> g_generation = 0;
 		uint32_t g_sampleGeneration = 0;
 		std::vector<std::shared_ptr<State>> g_retired;
 
@@ -593,6 +593,34 @@ namespace ActorState
 		}
 		std::scoped_lock lock(g_dirtyLock);
 		g_dirty.insert(a_refr);
+	}
+
+	bool RefreshParts(State& a_state)
+	{
+		const auto catalogue = Scan::Scanner::GetSingleton().GetCatalogue();
+		const auto refr = a_state.handle.get();
+		if (!catalogue || !refr) {
+			return false;
+		}
+		auto* root = refr->Get3D(false);
+		auto* actor = refr->As<RE::Actor>();
+		auto* faceNode = actor ? actor->GetFaceNodeSkinned() : nullptr;
+		const auto signature = SignatureOf(root, faceNode);
+		{
+			std::unique_lock lock(g_lock);
+			const auto it = g_states.find(a_state.handle.native_handle());
+			if (it == g_states.end() || (it->second.root == root && it->second.signature == signature)) {
+				return false;
+			}
+			// The frame's next start finds it read
+			it->second.root = root;
+			it->second.signature = signature;
+			it->second.bDirty = false;
+		}
+		auto parts = Read(refr.get(), root, *catalogue);
+		parts->generation = ++g_generation;
+		a_state.parts.With([&](auto& a_parts) { a_parts = std::move(parts); });
+		return true;
 	}
 
 	std::shared_ptr<State> FindByRoot(const RE::NiAVObject* a_root)
