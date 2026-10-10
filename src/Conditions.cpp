@@ -3338,12 +3338,12 @@ namespace Conditions
 		}
 
 		// A yes or no read off the actor, or off the reference: 1 or 0, nothing when there is no actor to ask
-		Program::Expr ActorFlag(Program::Builder& a_builder, std::string a_key, std::string_view a_description, bool (*a_read)(RE::Actor*))
+		Program::Expr ActorFlag(Program::Builder& a_builder, std::string a_key, std::string_view a_description, bool (*a_read)(RE::Actor*), BuiltinResources::Updates a_updates = {})
 		{
 			return a_builder.Truthy(a_builder.Resource(BuiltinResources::Number(std::move(a_key), a_description, [a_read](RE::TESObjectREFR* a_refr) {
 				auto* actor = a_refr ? a_refr->As<RE::Actor>() : nullptr;
 				return actor ? (a_read(actor) ? 1.f : 0.f) : std::numeric_limits<float>::quiet_NaN();
-			})));
+			}, Resources::Scope::Actor, a_updates)));
 		}
 
 		Program::Expr ReferenceFlag(Program::Builder& a_builder, std::string a_key, std::string_view a_description, bool (*a_read)(RE::TESObjectREFR*))
@@ -3629,7 +3629,7 @@ namespace Conditions
 
 	Program::Expr AttackStateCondition::Compile(Program::Builder& a_builder) const
 	{
-		const auto key = BuiltinResources::Number("dcmf.attackState", "The actor's attack state.", OffActor([](RE::Actor* a_actor) { return static_cast<float>(a_actor->AsActorState()->GetAttackState()); }));
+		const auto key = BuiltinResources::Number("dcmf.attackState", "The actor's attack state.", OffActor([](RE::Actor* a_actor) { return static_cast<float>(a_actor->AsActorState()->GetAttackState()); }), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 		return a_builder.Compare(a_builder.Resource(key), comparisonComponent, attackStateComponent);
 	}
 
@@ -3873,15 +3873,15 @@ namespace Conditions
 	}
 	Program::Expr IsFemaleCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.female", "Whether the actor is female.", [](RE::Actor* a_actor) { const auto base = a_actor->GetActorBase(); return base && base->IsFemale(); });
+		return ActorFlag(a_builder, "dcmf.female", "Whether the actor is female.", [](RE::Actor* a_actor) { const auto base = a_actor->GetActorBase(); return base && base->IsFemale(); }, BuiltinResources::Updates{ .bOnce = true });
 	}
 	Program::Expr IsDeadCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.dead", "Whether the actor is dead.", [](RE::Actor* a_actor) { return a_actor->IsDead(); });
+		return ActorFlag(a_builder, "dcmf.dead", "Whether the actor is dead.", [](RE::Actor* a_actor) { return a_actor->IsDead(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kDeath, .safetySeconds = 1.f });
 	}
 	Program::Expr IsChildCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.child", "Whether the actor is a child.", [](RE::Actor* a_actor) { return a_actor->IsChild(); });
+		return ActorFlag(a_builder, "dcmf.child", "Whether the actor is a child.", [](RE::Actor* a_actor) { return a_actor->IsChild(); }, BuiltinResources::Updates{ .bOnce = true });
 	}
 	Program::Expr IsPlayerTeammateCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -3889,7 +3889,7 @@ namespace Conditions
 	}
 	Program::Expr IsInInteriorCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.inInterior", "Whether the actor is in an interior cell.", [](RE::Actor* a_actor) { const auto cell = a_actor->GetParentCell(); return cell && cell->IsInteriorCell(); });
+		return ActorFlag(a_builder, "dcmf.inInterior", "Whether the actor is in an interior cell.", [](RE::Actor* a_actor) { const auto cell = a_actor->GetParentCell(); return cell && cell->IsInteriorCell(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kCell | BuiltinResources::Event::kLocation, .safetySeconds = 2.f });
 	}
 	Program::Expr IsInFactionCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -3970,7 +3970,7 @@ namespace Conditions
 	}
 	Program::Expr IsUniqueCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.unique", "Whether the actor's base is unique.", [](RE::Actor* a_actor) { const auto base = a_actor->GetActorBase(); return base && base->IsUnique(); });
+		return ActorFlag(a_builder, "dcmf.unique", "Whether the actor's base is unique.", [](RE::Actor* a_actor) { const auto base = a_actor->GetActorBase(); return base && base->IsUnique(); }, BuiltinResources::Updates{ .bOnce = true });
 	}
 	Program::Expr IsClassCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -3989,31 +3989,31 @@ namespace Conditions
 
 	Program::Expr IsAttackingCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.attacking", "Whether the actor is attacking.", [](RE::Actor* a_actor) { return a_actor->IsAttacking(); });
+		return ActorFlag(a_builder, "dcmf.attacking", "Whether the actor is attacking.", [](RE::Actor* a_actor) { return a_actor->IsAttacking(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsRunningCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.running", "Whether the actor is running.", [](RE::Actor* a_actor) { return a_actor->IsRunning(); });
+		return ActorFlag(a_builder, "dcmf.running", "Whether the actor is running.", [](RE::Actor* a_actor) { return a_actor->IsRunning(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsSneakingCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.sneaking", "Whether the actor is sneaking.", [](RE::Actor* a_actor) { return a_actor->IsSneaking(); });
+		return ActorFlag(a_builder, "dcmf.sneaking", "Whether the actor is sneaking.", [](RE::Actor* a_actor) { return a_actor->IsSneaking(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsSprintingCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.sprinting", "Whether the actor is sprinting.", [](RE::Actor* a_actor) { return a_actor->AsActorState()->IsSprinting(); });
+		return ActorFlag(a_builder, "dcmf.sprinting", "Whether the actor is sprinting.", [](RE::Actor* a_actor) { return a_actor->AsActorState()->IsSprinting(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsInAirCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.inAir", "Whether the actor is in the air.", [](RE::Actor* a_actor) { return a_actor->IsInMidair(); });
+		return ActorFlag(a_builder, "dcmf.inAir", "Whether the actor is in the air.", [](RE::Actor* a_actor) { return a_actor->IsInMidair(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsInCombatCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.inCombat", "Whether the actor is in combat.", [](RE::Actor* a_actor) { return a_actor->IsInCombat(); });
+		return ActorFlag(a_builder, "dcmf.inCombat", "Whether the actor is in combat.", [](RE::Actor* a_actor) { return a_actor->IsInCombat(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kCombat, .safetySeconds = 1.f });
 	}
 	Program::Expr IsWeaponDrawnCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.weaponDrawn", "Whether the actor has its weapon drawn.", [](RE::Actor* a_actor) { return a_actor->AsActorState()->IsWeaponDrawn(); });
+		return ActorFlag(a_builder, "dcmf.weaponDrawn", "Whether the actor has its weapon drawn.", [](RE::Actor* a_actor) { return a_actor->AsActorState()->IsWeaponDrawn(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsInLocationCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -4086,7 +4086,7 @@ namespace Conditions
 
 	Program::Expr IsBlockingCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.blocking", "Whether the actor is blocking.", [](RE::Actor* a_actor) { return a_actor->IsBlocking(); });
+		return ActorFlag(a_builder, "dcmf.blocking", "Whether the actor is blocking.", [](RE::Actor* a_actor) { return a_actor->IsBlocking(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsCombatStateCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -4105,7 +4105,7 @@ namespace Conditions
 
 	Program::Expr IsOnMountCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.onMount", "Whether the actor is on a mount.", [](RE::Actor* a_actor) { return a_actor->IsOnMount(); });
+		return ActorFlag(a_builder, "dcmf.onMount", "Whether the actor is on a mount.", [](RE::Actor* a_actor) { return a_actor->IsOnMount(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsRidingCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -4117,7 +4117,7 @@ namespace Conditions
 				return nullptr;
 			}
 			return bBase ? static_cast<RE::TESForm*>(mount->GetActorBase()) : static_cast<RE::TESForm*>(mount.get());
-		}));
+		}, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f }));
 	}
 
 	Program::Expr IsRidingHasKeywordCondition::Compile(Program::Builder& a_builder) const
@@ -4127,7 +4127,7 @@ namespace Conditions
 			if (RE::ActorPtr mount = nullptr; actor && actor->GetMount(mount)) {
 				KeywordsOf(mount->As<RE::BGSKeywordForm>(), a_out);
 			}
-		}));
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f }));
 	}
 
 	Program::Expr CurrentFurnitureCondition::Compile(Program::Builder& a_builder) const
@@ -4181,7 +4181,7 @@ namespace Conditions
 		const auto key = BuiltinResources::Number(std::format("dcmf.castingType.{}", static_cast<std::int32_t>(source)), "The casting type of the spell in the source.", OffActor([source](RE::Actor* a_actor) {
 			const auto spell = SpellIn(a_actor, source);
 			return spell ? static_cast<float>(spell->GetCastingType()) : std::numeric_limits<float>::quiet_NaN();
-		}));
+		}), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation | BuiltinResources::Event::kSpellCast, .safetySeconds = .5f });
 		return a_builder.Compare(a_builder.Resource(key), Conditions::ComparisonOperator::kEqual, a_builder.Number(castingTypeComponent->value));
 	}
 
@@ -4191,7 +4191,7 @@ namespace Conditions
 		const auto key = BuiltinResources::Number(std::format("dcmf.deliveryType.{}", static_cast<std::int32_t>(source)), "The delivery type of the spell in the source.", OffActor([source](RE::Actor* a_actor) {
 			const auto spell = SpellIn(a_actor, source);
 			return spell ? static_cast<float>(spell->GetDelivery()) : std::numeric_limits<float>::quiet_NaN();
-		}));
+		}), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation | BuiltinResources::Event::kSpellCast, .safetySeconds = .5f });
 		return a_builder.Compare(a_builder.Resource(key), Conditions::ComparisonOperator::kEqual, a_builder.Number(deliveryTypeComponent->value));
 	}
 
@@ -4242,7 +4242,7 @@ namespace Conditions
 
 	Program::Expr IsTalkingCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.talking", "Whether the actor is talking.", [](RE::Actor* a_actor) { return Actor_IsTalking(a_actor); });
+		return ActorFlag(a_builder, "dcmf.talking", "Whether the actor is talking.", [](RE::Actor* a_actor) { return Actor_IsTalking(a_actor); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kTopic, .safetySeconds = .5f });
 	}
 	Program::Expr IsGreetingPlayerCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -4447,7 +4447,7 @@ namespace Conditions
 			const auto actor = ActorOf(a_refr);
 			const auto high = actor ? actor->GetHighProcess() : nullptr;
 			return high && high->attackData ? high->attackData->data.attackType : nullptr;
-		});
+		}, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 		return a_builder.HasAny(a_builder.ResourceSet(key), { wanted->GetFormID() });
 	}
 
@@ -4465,7 +4465,7 @@ namespace Conditions
 					a_out.push_back(bit);
 				}
 			}
-		});
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 		return a_builder.HasAny(a_builder.ResourceSet(key), { static_cast<std::uint64_t>(Fixed(attackFlagComponent)) });
 	}
 
@@ -4475,7 +4475,7 @@ namespace Conditions
 	}
 	Program::Expr IsSummonedCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.summoned", "Whether the actor is summoned.", [](RE::Actor* a_actor) { return a_actor->IsSummoned(); });
+		return ActorFlag(a_builder, "dcmf.summoned", "Whether the actor is summoned.", [](RE::Actor* a_actor) { return a_actor->IsSummoned(); }, BuiltinResources::Updates{ .bOnce = true });
 	}
 	Program::Expr IsEquippedHasEnchantmentCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -4522,7 +4522,7 @@ namespace Conditions
 	}
 	Program::Expr IsGuardCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.guard", "Whether the actor is a guard.", [](RE::Actor* a_actor) { return a_actor->IsGuard(); });
+		return ActorFlag(a_builder, "dcmf.guard", "Whether the actor is a guard.", [](RE::Actor* a_actor) { return a_actor->IsGuard(); }, BuiltinResources::Updates{ .bOnce = true });
 	}
 	Program::Expr IsCrimeSearchingCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -4610,11 +4610,11 @@ namespace Conditions
 	}
 	Program::Expr IsSwimmingCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.swimming", "Whether the actor is swimming.", [](RE::Actor* a_actor) { const auto state = a_actor->AsActorState(); return state && state->IsSwimming(); });
+		return ActorFlag(a_builder, "dcmf.swimming", "Whether the actor is swimming.", [](RE::Actor* a_actor) { const auto state = a_actor->AsActorState(); return state && state->IsSwimming(); }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr IsStaggeredCondition::Compile(Program::Builder& a_builder) const
 	{
-		return ActorFlag(a_builder, "dcmf.staggered", "Whether the actor is staggered.", [](RE::Actor* a_actor) { const auto state = a_actor->AsActorState(); return state && state->actorState2.staggered; });
+		return ActorFlag(a_builder, "dcmf.staggered", "Whether the actor is staggered.", [](RE::Actor* a_actor) { const auto state = a_actor->AsActorState(); return state && state->actorState2.staggered; }, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation, .safetySeconds = .5f });
 	}
 	Program::Expr CastingSpellCondition::Compile(Program::Builder& a_builder) const
 	{
@@ -4630,7 +4630,7 @@ namespace Conditions
 			}
 			const auto caster = a_actor->GetMagicCaster(castingSource);
 			return caster && !caster->GetIsDualCasting() && caster->state > RE::MagicCaster::State::kNone && caster->state < RE::MagicCaster::State::kUnk07 ? 1.f : 0.f;
-		}))));
+		}), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kAnimation | BuiltinResources::Event::kSpellCast, .safetySeconds = .5f })));
 	}
 
 	Program::Expr HasBoundWeaponEquippedCondition::Compile(Program::Builder& a_builder) const

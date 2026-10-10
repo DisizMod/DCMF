@@ -202,6 +202,8 @@ namespace BuiltinResources
 			public RE::BSTEventSink<RE::TESMoveAttachDetachEvent>,
 			public RE::BSTEventSink<RE::TESActorLocationChangeEvent>,
 			public RE::BSTEventSink<RE::TESQuestStageEvent>,
+			public RE::BSTEventSink<RE::TESSpellCastEvent>,
+			public RE::BSTEventSink<RE::TESTopicInfoEvent>,
 			public RE::BSTEventSink<RE::MenuOpenCloseEvent>
 		{
 		public:
@@ -240,6 +242,8 @@ namespace BuiltinResources
 			Control ProcessEvent(const RE::TESCellAttachDetachEvent* a_event, RE::BSTEventSource<RE::TESCellAttachDetachEvent>*) override { return On(Event::kCell, a_event ? a_event->reference.get() : nullptr); }
 			Control ProcessEvent(const RE::TESMoveAttachDetachEvent* a_event, RE::BSTEventSource<RE::TESMoveAttachDetachEvent>*) override { return On(Event::kCell, a_event ? a_event->movedRef.get() : nullptr); }
 			Control ProcessEvent(const RE::TESActorLocationChangeEvent* a_event, RE::BSTEventSource<RE::TESActorLocationChangeEvent>*) override { return On(Event::kLocation, a_event ? a_event->actor.get() : nullptr); }
+			Control ProcessEvent(const RE::TESSpellCastEvent* a_event, RE::BSTEventSource<RE::TESSpellCastEvent>*) override { return On(Event::kSpellCast, a_event ? a_event->object.get() : nullptr); }
+			Control ProcessEvent(const RE::TESTopicInfoEvent* a_event, RE::BSTEventSource<RE::TESTopicInfoEvent>*) override { return On(Event::kTopic, a_event ? a_event->speakerRef.get() : nullptr); }
 
 			Control ProcessEvent(const RE::TESQuestStageEvent*, RE::BSTEventSource<RE::TESQuestStageEvent>*) override
 			{
@@ -347,6 +351,8 @@ namespace BuiltinResources
 			holder->AddEventSink<RE::TESMoveAttachDetachEvent>(&g_eventSinks);
 			holder->AddEventSink<RE::TESActorLocationChangeEvent>(&g_eventSinks);
 			holder->AddEventSink<RE::TESQuestStageEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESSpellCastEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESTopicInfoEvent>(&g_eventSinks);
 		} else {
 			logger::error("resources: no script event source; what reads on events is read again only by its safety interval");
 		}

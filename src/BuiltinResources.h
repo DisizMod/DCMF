@@ -38,6 +38,9 @@ namespace BuiltinResources
 		inline constexpr std::uint32_t kLocation = 1u << 8;
 		inline constexpr std::uint32_t kQuestStage = 1u << 9;
 		inline constexpr std::uint32_t kMenu = 1u << 10;
+		inline constexpr std::uint32_t kAnimation = 1u << 11;  // any event of the actor's behavior graph
+		inline constexpr std::uint32_t kSpellCast = 1u << 12;
+		inline constexpr std::uint32_t kTopic = 1u << 13;      // a line the actor speaks
 	}
 
 	// How a resource is read again: on its events, polled every safety interval besides when one is given; once per actor

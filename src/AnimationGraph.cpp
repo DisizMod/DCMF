@@ -1,5 +1,8 @@
 #include "AnimationGraph.h"
 
+#include "BuiltinResources.h"
+#include "Resources.h"
+
 #include "ClipPlayer.h"
 #include "ModRegistry.h"
 #include "RegisteredMods.h"
@@ -234,6 +237,8 @@ namespace AnimationGraph
 			if (!a_event || !a_event->holder || a_event->tag.empty()) {
 				return;
 			}
+			// What the actor's animation decides is read again: attacking, blocking, sneaking, in the air and the like
+			Resources::InvalidateEvent(BuiltinResources::Event::kAnimation, const_cast<RE::TESObjectREFR*>(a_event->holder));
 			const auto listened = g_listened.load();
 			if (!listened || listened->empty()) {
 				return;
