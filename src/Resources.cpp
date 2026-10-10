@@ -3,6 +3,7 @@
 #include "Conditions.h"
 
 #include <atomic>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <map>
@@ -44,6 +45,21 @@ namespace Resources
 		std::mutex g_listenerLock;
 		std::vector<DCMF_API::Resources::IActorListener*> g_listeners;
 
+		// Who a value may have changed for, until the scheduler takes them
+		std::mutex g_touchLock;
+		std::vector<RE::FormID> g_touched;
+		bool g_bWorldTouched = false;
+
+		void Touch(std::optional<RE::FormID> a_subject)
+		{
+			std::scoped_lock lock(g_touchLock);
+			if (!a_subject || *a_subject == 0) {
+				g_bWorldTouched = true;
+			} else {
+				g_touched.push_back(*a_subject);
+			}
+		}
+
 		std::vector<DCMF_API::Resources::IActorListener*> Listeners()
 		{
 			std::scoped_lock lock(g_listenerLock);
@@ -75,6 +91,8 @@ namespace Resources
 				return a_held->tick != g_tick.load();
 			case Refresh::Interval:
 				return Clock::now() - a_held->at >= std::chrono::duration<float>(a_info.intervalSeconds);
+			case Refresh::Invalidated:
+				return a_info.safetySeconds > 0.f && Clock::now() - a_held->at >= std::chrono::duration<float>(a_info.safetySeconds);
 			default:
 				return false;
 			}
@@ -98,8 +116,13 @@ namespace Resources
 				return Result::WrongScope;
 			}
 			auto& held = resource.held[a_subject ? a_subject->GetFormID() : 0];
+			const bool bChanged = !held.bFresh || std::bit_cast<std::uint32_t>(held.number) != std::bit_cast<std::uint32_t>(a_value.number) || held.form != a_value.form;
 			held = a_value;
 			held.bFresh = true;
+			lock.unlock();
+			if (bChanged) {
+				Touch(a_subject ? std::optional<RE::FormID>(a_subject->GetFormID()) : std::nullopt);
+			}
 			return Result::OK;
 		}
 
@@ -143,6 +166,7 @@ namespace Resources
 				a_outInfo.intervalSeconds = resource.info.intervalSeconds;
 				a_outInfo.defaultNumber = resource.info.defaultNumber;
 				a_outInfo.defaultForm = resource.info.defaultForm;
+				a_outInfo.safetySeconds = resource.info.safetySeconds;
 				gatherer = resource.gatherer;
 				subject = SubjectOf(resource.info.scope, a_refr);
 				if (!subject) {
@@ -224,7 +248,10 @@ namespace Resources
 		case Refresh::Interval:
 			return std::format("Every {:g} s", a_info.intervalSeconds);
 		case Refresh::Invalidated:
-			return "When invalidated";
+			if (a_info.events != 0) {
+				return a_info.safetySeconds > 0.f ? std::format("On events, and every {:g} s", a_info.safetySeconds) : "On events";
+			}
+			return a_info.safetySeconds > 0.f ? std::format("When invalidated, and every {:g} s", a_info.safetySeconds) : "When invalidated";
 		case Refresh::Stored:
 		default:
 			return "Stored";
@@ -298,14 +325,52 @@ namespace Resources
 		if (resource.info.refresh == Refresh::Stored) {
 			return Result::WrongRefresh;
 		}
-		if (!a_subject || resource.info.scope == Scope::World) {
+		const bool bEveryone = !a_subject || resource.info.scope == Scope::World;
+		if (bEveryone) {
 			for (auto& [id, held] : resource.held) {
 				held.bFresh = false;
 			}
 		} else if (const auto found = resource.held.find(a_subject->GetFormID()); found != resource.held.end()) {
 			found->second.bFresh = false;
 		}
+		lock.unlock();
+		Touch(bEveryone ? std::nullopt : std::optional<RE::FormID>(a_subject->GetFormID()));
 		return Result::OK;
+	}
+
+	void InvalidateEvent(std::uint32_t a_events, RE::TESObjectREFR* a_subject)
+	{
+		bool bAny = false;
+		bool bEveryone = !a_subject;
+		{
+			std::unique_lock lock(g_lock);
+			for (auto& [key, resource] : g_resources) {
+				if ((resource.info.events & a_events) == 0) {
+					continue;
+				}
+				bAny = true;
+				if (!a_subject || resource.info.scope == Scope::World) {
+					bEveryone = true;
+					for (auto& [id, held] : resource.held) {
+						held.bFresh = false;
+					}
+				} else if (const auto found = resource.held.find(a_subject->GetFormID()); found != resource.held.end()) {
+					found->second.bFresh = false;
+				}
+			}
+		}
+		if (bAny) {
+			Touch(bEveryone ? std::nullopt : std::optional<RE::FormID>(a_subject->GetFormID()));
+		}
+	}
+
+	void TakeTouched(std::vector<RE::FormID>& a_outActors, bool& a_bOutWorld)
+	{
+		std::scoped_lock lock(g_touchLock);
+		a_outActors.swap(g_touched);
+		g_touched.clear();
+		a_bOutWorld = g_bWorldTouched;
+		g_bWorldTouched = false;
 	}
 
 	std::optional<float> GetNumber(std::string_view a_key, RE::TESObjectREFR* a_refr)
@@ -356,6 +421,8 @@ namespace Resources
 				resource.held.clear();
 			}
 		}
+		lock.unlock();
+		Touch(std::nullopt);
 	}
 
 	void AddActorListener(DCMF_API::Resources::IActorListener* a_listener)

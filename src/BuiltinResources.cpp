@@ -187,24 +187,80 @@ namespace BuiltinResources
 			bool _bRace;
 		};
 
-		// An equip or unequip: what the actor wears is read again when next asked
-		class EquipSink : public RE::BSTEventSink<RE::TESEquipEvent>
+		// The engine's events, each making the resources that name it read again for the actor it is about
+		class EventSinks :
+			public RE::BSTEventSink<RE::TESEquipEvent>,
+			public RE::BSTEventSink<RE::TESContainerChangedEvent>,
+			public RE::BSTEventSink<RE::TESActiveEffectApplyRemoveEvent>,
+			public RE::BSTEventSink<RE::TESMagicEffectApplyEvent>,
+			public RE::BSTEventSink<RE::TESCombatEvent>,
+			public RE::BSTEventSink<RE::TESDeathEvent>,
+			public RE::BSTEventSink<RE::TESEnterBleedoutEvent>,
+			public RE::BSTEventSink<RE::TESFurnitureEvent>,
+			public RE::BSTEventSink<RE::TESSwitchRaceCompleteEvent>,
+			public RE::BSTEventSink<RE::TESCellAttachDetachEvent>,
+			public RE::BSTEventSink<RE::TESMoveAttachDetachEvent>,
+			public RE::BSTEventSink<RE::TESActorLocationChangeEvent>,
+			public RE::BSTEventSink<RE::TESQuestStageEvent>,
+			public RE::BSTEventSink<RE::MenuOpenCloseEvent>
 		{
 		public:
-			RE::BSEventNotifyControl ProcessEvent(const RE::TESEquipEvent* a_event, RE::BSTEventSource<RE::TESEquipEvent>*) override
+			using Control = RE::BSEventNotifyControl;
+
+			Control ProcessEvent(const RE::TESEquipEvent* a_event, RE::BSTEventSource<RE::TESEquipEvent>*) override { return On(Event::kEquip, a_event ? a_event->actor.get() : nullptr); }
+
+			Control ProcessEvent(const RE::TESContainerChangedEvent* a_event, RE::BSTEventSource<RE::TESContainerChangedEvent>*) override
 			{
-				if (a_event && a_event->actor) {
-					auto* actor = a_event->actor.get();
-					(void)Resources::Invalidate(kWorn, actor);
-					(void)Resources::Invalidate(kWornKeywords, actor);
-					(void)Resources::Invalidate(kWornNames, actor);
-					(void)Resources::Invalidate(kWornPlugins, actor);
-					(void)Resources::Invalidate(kWornSlots, actor);
-					for (std::uint32_t slot = 0; slot < 32; ++slot) {
-						(void)Resources::Invalidate(WornSlotKeywordsKey(slot), actor);
+				if (a_event) {
+					for (const auto id : { a_event->oldContainer, a_event->newContainer }) {
+						if (auto* container = id ? RE::TESForm::LookupByID<RE::TESObjectREFR>(id) : nullptr) {
+							(void)On(Event::kContainer, container);
+						}
 					}
 				}
-				return RE::BSEventNotifyControl::kContinue;
+				return Control::kContinue;
+			}
+
+			Control ProcessEvent(const RE::TESActiveEffectApplyRemoveEvent* a_event, RE::BSTEventSource<RE::TESActiveEffectApplyRemoveEvent>*) override { return On(Event::kMagicEffect, a_event ? a_event->target.get() : nullptr); }
+			Control ProcessEvent(const RE::TESMagicEffectApplyEvent* a_event, RE::BSTEventSource<RE::TESMagicEffectApplyEvent>*) override { return On(Event::kMagicEffect, a_event ? a_event->target.get() : nullptr); }
+
+			Control ProcessEvent(const RE::TESCombatEvent* a_event, RE::BSTEventSource<RE::TESCombatEvent>*) override
+			{
+				if (a_event) {
+					(void)On(Event::kCombat, a_event->actor.get());
+					(void)On(Event::kCombat, a_event->targetActor.get());
+				}
+				return Control::kContinue;
+			}
+
+			Control ProcessEvent(const RE::TESDeathEvent* a_event, RE::BSTEventSource<RE::TESDeathEvent>*) override { return On(Event::kDeath, a_event ? a_event->actorDying.get() : nullptr); }
+			Control ProcessEvent(const RE::TESEnterBleedoutEvent* a_event, RE::BSTEventSource<RE::TESEnterBleedoutEvent>*) override { return On(Event::kDeath, a_event ? a_event->actor.get() : nullptr); }
+			Control ProcessEvent(const RE::TESFurnitureEvent* a_event, RE::BSTEventSource<RE::TESFurnitureEvent>*) override { return On(Event::kFurniture, a_event ? a_event->actor.get() : nullptr); }
+			Control ProcessEvent(const RE::TESSwitchRaceCompleteEvent* a_event, RE::BSTEventSource<RE::TESSwitchRaceCompleteEvent>*) override { return On(Event::kRace, a_event ? a_event->subject.get() : nullptr); }
+			Control ProcessEvent(const RE::TESCellAttachDetachEvent* a_event, RE::BSTEventSource<RE::TESCellAttachDetachEvent>*) override { return On(Event::kCell, a_event ? a_event->reference.get() : nullptr); }
+			Control ProcessEvent(const RE::TESMoveAttachDetachEvent* a_event, RE::BSTEventSource<RE::TESMoveAttachDetachEvent>*) override { return On(Event::kCell, a_event ? a_event->movedRef.get() : nullptr); }
+			Control ProcessEvent(const RE::TESActorLocationChangeEvent* a_event, RE::BSTEventSource<RE::TESActorLocationChangeEvent>*) override { return On(Event::kLocation, a_event ? a_event->actor.get() : nullptr); }
+
+			Control ProcessEvent(const RE::TESQuestStageEvent*, RE::BSTEventSource<RE::TESQuestStageEvent>*) override
+			{
+				Resources::InvalidateEvent(Event::kQuestStage, nullptr);
+				return Control::kContinue;
+			}
+
+			Control ProcessEvent(const RE::MenuOpenCloseEvent*, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
+			{
+				Resources::InvalidateEvent(Event::kMenu, nullptr);
+				return Control::kContinue;
+			}
+
+		private:
+			// An event about no one is dropped: with no subject the resources would be read again for everyone
+			static Control On(std::uint32_t a_event, RE::TESObjectREFR* a_subject)
+			{
+				if (a_subject) {
+					Resources::InvalidateEvent(a_event, a_subject);
+				}
+				return Control::kContinue;
 			}
 		};
 
@@ -219,7 +275,7 @@ namespace BuiltinResources
 		WornGatherer g_wornPlugins{ WornGatherer::What::kPlugins };
 		IdentityGatherer g_race{ true };
 		IdentityGatherer g_actorBase{ false };
-		EquipSink g_equipSink;
+		EventSinks g_eventSinks;
 
 		// Registered the first time the key is asked for; the registry refuses the ones after
 		std::string Ensure(std::string a_key, Resources::Scope a_scope, const Components::NumericValue& a_value, std::string_view a_description)
@@ -270,7 +326,7 @@ namespace BuiltinResources
 		// What an actor wears is read again on an equip; every few seconds as well, for whatever changes it without one
 		const auto worn = [](std::string_view a_key, Resources::ValueType a_type, std::string_view a_description, Resources::Gatherer* a_gatherer) {
 			RegisterBuiltin({ .key = std::string(a_key), .description = std::string(a_description), .plugin = std::string(kPlugin), .type = a_type, .scope = Resources::Scope::Actor,
-									.refresh = Resources::Refresh::Interval, .intervalSeconds = 5.f },
+									.refresh = Resources::Refresh::Invalidated, .events = Event::kEquip, .safetySeconds = 5.f },
 				a_gatherer);
 		};
 		worn(kWorn, Resources::ValueType::FormSet, "What the actor wears.", &g_worn);
@@ -278,15 +334,31 @@ namespace BuiltinResources
 		worn(kWornNames, Resources::ValueType::TextSet, "The names of what the actor wears, as its inventory shows them and as their forms have them.", &g_wornNames);
 		worn(kWornPlugins, Resources::ValueType::TextSet, "The plugins that add what the actor wears.", &g_wornPlugins);
 		if (auto* holder = RE::ScriptEventSourceHolder::GetSingleton()) {
-			holder->AddEventSink<RE::TESEquipEvent>(&g_equipSink);
+			holder->AddEventSink<RE::TESEquipEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESContainerChangedEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESActiveEffectApplyRemoveEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESMagicEffectApplyEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESCombatEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESDeathEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESEnterBleedoutEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESFurnitureEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESSwitchRaceCompleteEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESCellAttachDetachEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESMoveAttachDetachEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESActorLocationChangeEvent>(&g_eventSinks);
+			holder->AddEventSink<RE::TESQuestStageEvent>(&g_eventSinks);
 		} else {
-			logger::error("resources: no script event source; what is worn is read again only every few seconds");
+			logger::error("resources: no script event source; what reads on events is read again only by its safety interval");
 		}
+		if (auto* ui = RE::UI::GetSingleton()) {
+			ui->AddEventSink<RE::MenuOpenCloseEvent>(&g_eventSinks);
+		}
+		// A race changes by its event, a base never; both read again every few seconds for whatever changes them without one
 		RegisterBuiltin({ .key = std::string(kRace), .description = "The actor's race.", .plugin = std::string(kPlugin), .type = Resources::ValueType::Form, .scope = Resources::Scope::Actor,
-								.refresh = Resources::Refresh::EveryTick },
+								.refresh = Resources::Refresh::Invalidated, .events = Event::kRace, .safetySeconds = 5.f },
 			&g_race);
 		RegisterBuiltin({ .key = std::string(kActorBase), .description = "The actor's base.", .plugin = std::string(kPlugin), .type = Resources::ValueType::Form, .scope = Resources::Scope::Actor,
-								.refresh = Resources::Refresh::EveryTick },
+								.refresh = Resources::Refresh::Invalidated, .safetySeconds = 5.f },
 			&g_actorBase);
 	}
 
@@ -294,7 +366,7 @@ namespace BuiltinResources
 	{
 		// Registered once: the first asking gives the function, the later ones find the key taken
 		std::string EnsureFunction(std::string a_key, std::string_view a_description, Resources::ValueType a_type, Resources::Scope a_scope, Resources::Refresh a_refresh, float a_interval,
-			const std::function<void(FunctionGatherer&)>& a_fill)
+			const std::function<void(FunctionGatherer&)>& a_fill, Updates a_updates = {})
 		{
 			std::scoped_lock guard(g_lock);
 			if (Resources::Exists(a_key)) {
@@ -302,34 +374,38 @@ namespace BuiltinResources
 			}
 			auto& gatherer = g_functions.emplace_back();
 			a_fill(gatherer);
+			// Declared updates take the place of the polling asked for
+			if (a_updates.events != 0 || a_updates.bOnce) {
+				a_refresh = Resources::Refresh::Invalidated;
+			}
 			RegisterBuiltin({ .key = a_key, .description = std::string(a_description), .plugin = std::string(kPlugin), .type = a_type, .scope = a_scope, .refresh = a_refresh,
-									.intervalSeconds = a_interval, .defaultNumber = kNoAnswer },
+									.intervalSeconds = a_interval, .defaultNumber = kNoAnswer, .events = a_updates.events, .safetySeconds = a_updates.bOnce ? 0.f : a_updates.safetySeconds },
 				&gatherer);
 			return a_key;
 		}
 	}
 
-	std::string Number(std::string a_key, std::string_view a_description, std::function<float(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope)
+	std::string Number(std::string a_key, std::string_view a_description, std::function<float(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope, Updates a_updates)
 	{
-		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::Number, a_scope, Resources::Refresh::EveryTick, 0.f, [&](FunctionGatherer& a_gatherer) { a_gatherer.number = std::move(a_read); });
+		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::Number, a_scope, Resources::Refresh::EveryTick, 0.f, [&](FunctionGatherer& a_gatherer) { a_gatherer.number = std::move(a_read); }, a_updates);
 	}
 
-	std::string Form(std::string a_key, std::string_view a_description, std::function<RE::TESForm*(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope)
+	std::string Form(std::string a_key, std::string_view a_description, std::function<RE::TESForm*(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope, Updates a_updates)
 	{
-		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::Form, a_scope, Resources::Refresh::EveryTick, 0.f, [&](FunctionGatherer& a_gatherer) { a_gatherer.form = std::move(a_read); });
+		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::Form, a_scope, Resources::Refresh::EveryTick, 0.f, [&](FunctionGatherer& a_gatherer) { a_gatherer.form = std::move(a_read); }, a_updates);
 	}
 
-	std::string FormSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<RE::FormID>&)> a_read, float a_intervalSeconds)
+	std::string FormSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<RE::FormID>&)> a_read, float a_intervalSeconds, Updates a_updates)
 	{
 		const auto refresh = a_intervalSeconds > 0.f ? Resources::Refresh::Interval : Resources::Refresh::EveryTick;
-		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::FormSet, Resources::Scope::Actor, refresh, a_intervalSeconds, [&](FunctionGatherer& a_gatherer) { a_gatherer.set = std::move(a_read); });
+		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::FormSet, Resources::Scope::Actor, refresh, a_intervalSeconds, [&](FunctionGatherer& a_gatherer) { a_gatherer.set = std::move(a_read); }, a_updates);
 	}
 
-	std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds)
+	std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds, Updates a_updates)
 	{
 		// A negative interval: read once per actor and held
 		const auto refresh = a_intervalSeconds < 0.f ? Resources::Refresh::Invalidated : a_intervalSeconds > 0.f ? Resources::Refresh::Interval : Resources::Refresh::EveryTick;
-		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::TextSet, Resources::Scope::Actor, refresh, a_intervalSeconds, [&](FunctionGatherer& a_gatherer) { a_gatherer.texts = std::move(a_read); });
+		return EnsureFunction(std::move(a_key), a_description, Resources::ValueType::TextSet, Resources::Scope::Actor, refresh, a_intervalSeconds, [&](FunctionGatherer& a_gatherer) { a_gatherer.texts = std::move(a_read); }, a_updates);
 	}
 
 	namespace

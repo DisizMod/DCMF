@@ -29,6 +29,9 @@ namespace Resources
 		bool bFeed = false;
 		float defaultNumber = 0.f;
 		RE::FormID defaultForm = 0;
+		// DCMF's own: the engine events that make an Invalidated resource stale, and how old it may grow besides
+		std::uint32_t events = 0;
+		float safetySeconds = 0.f;
 	};
 
 	[[nodiscard]] std::string_view TypeName(ValueType a_type);
@@ -49,6 +52,13 @@ namespace Resources
 	Result SetForm(std::string_view a_key, RE::TESObjectREFR* a_subject, RE::TESForm* a_form);
 	// Any thread: a gathered resource read again when next needed, for an actor or, with none, for everyone
 	Result Invalidate(std::string_view a_key, RE::TESObjectREFR* a_subject);
+	// Any thread: every resource naming one of the events read again when next needed, for the subject or, with none,
+	// for everyone
+	void InvalidateEvent(std::uint32_t a_events, RE::TESObjectREFR* a_subject);
+
+	// Main thread: who a value may have changed for since the last call, a stored one set to a new value or a gathered
+	// one made stale; the world when one held for every actor did
+	void TakeTouched(std::vector<RE::FormID>& a_outActors, bool& a_bOutWorld);
 
 	// What a number resource holds for a reference: gathered when due on the main thread, what was last held anywhere
 	// else, its default when nothing is; none when no number resource has the key

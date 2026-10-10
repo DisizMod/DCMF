@@ -24,17 +24,42 @@ namespace BuiltinResources
 	inline constexpr auto kRace = "dcmf.race"sv;
 	inline constexpr auto kActorBase = "dcmf.actorBase"sv;
 
-	// Main thread, at load: the targets a TARGET row reads its subject from, what an actor wears and is, and the equip
-	// events that make what it wears read again
+	// The engine events a resource is read again on, for the actor each is about; the world's for a menu or a quest stage
+	namespace Event
+	{
+		inline constexpr std::uint32_t kEquip = 1u << 0;
+		inline constexpr std::uint32_t kContainer = 1u << 1;
+		inline constexpr std::uint32_t kMagicEffect = 1u << 2;
+		inline constexpr std::uint32_t kCombat = 1u << 3;
+		inline constexpr std::uint32_t kDeath = 1u << 4;
+		inline constexpr std::uint32_t kFurniture = 1u << 5;
+		inline constexpr std::uint32_t kRace = 1u << 6;
+		inline constexpr std::uint32_t kCell = 1u << 7;
+		inline constexpr std::uint32_t kLocation = 1u << 8;
+		inline constexpr std::uint32_t kQuestStage = 1u << 9;
+		inline constexpr std::uint32_t kMenu = 1u << 10;
+	}
+
+	// How a resource is read again: on its events, polled every safety interval besides when one is given; once per actor
+	// and held; or, with neither, every tick
+	struct Updates
+	{
+		std::uint32_t events = 0;
+		float safetySeconds = 0.f;
+		bool bOnce = false;
+	};
+
+	// Main thread, at load: the targets a TARGET row reads its subject from, what an actor wears and is, and the engine
+	// events that make resources read again
 	void Register();
 
 	// A number, a form or a set of forms read by a function, registered under the key the first time it is asked for. The
 	// registry keeps the function for the game's life: it holds nothing a row owns
-	[[nodiscard]] std::string Number(std::string a_key, std::string_view a_description, std::function<float(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor);
-	[[nodiscard]] std::string Form(std::string a_key, std::string_view a_description, std::function<RE::TESForm*(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor);
-	[[nodiscard]] std::string FormSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<RE::FormID>&)> a_read, float a_intervalSeconds = 0.f);
+	[[nodiscard]] std::string Number(std::string a_key, std::string_view a_description, std::function<float(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor, Updates a_updates = {});
+	[[nodiscard]] std::string Form(std::string a_key, std::string_view a_description, std::function<RE::TESForm*(RE::TESObjectREFR*)> a_read, Resources::Scope a_scope = Resources::Scope::Actor, Updates a_updates = {});
+	[[nodiscard]] std::string FormSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<RE::FormID>&)> a_read, float a_intervalSeconds = 0.f, Updates a_updates = {});
 	// A negative interval reads once per actor and holds it
-	[[nodiscard]] std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds = 0.f);
+	[[nodiscard]] std::string TextSet(std::string a_key, std::string_view a_description, std::function<void(RE::TESObjectREFR*, std::vector<std::string>&)> a_read, float a_intervalSeconds = 0.f, Updates a_updates = {});
 	// A number drawn between the two for each actor from the seed; with the seed's say, again each time a clip that
 	// resets the key loops or echoes on the actor
 	void Seeded(const std::string& a_key, float a_low, float a_high, const Components::RandomSeed& a_seed);

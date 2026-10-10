@@ -15,6 +15,7 @@ struct Settings
 	static inline uint32_t uTargetMode = 1;  // Scheduler::TargetMode
 	static inline float fTargetDistance = 0.f;
 	static inline float fTickRate = 4.f;
+	static inline float fMinEvaluationGap = 100.f;  // ms an actor waits after an evaluation before a change is answered again
 	static inline float fDefaultTransitionTime = 0.3f;
 	static inline bool bPauseInRaceMenu = true;  // every actor let go while RaceMenu is open, so what it reads and saves is the actor's own
 

@@ -19,6 +19,7 @@
 #include <cmath>
 #include <map>
 #include <mutex>
+#include <unordered_set>
 #include <vector>
 
 namespace Scheduler
@@ -91,9 +92,23 @@ namespace Scheduler
 		std::unordered_map<RE::FormID, std::vector<std::uint8_t>> g_functionAnswers;
 		std::vector<std::uint8_t> g_ruleAnswers;
 
-		// Per actor, the modifiers whose rules held, and the clips, kept from the evaluate phase for the resolve one
-		std::vector<std::vector<const SubMod*>> g_held;
-		std::vector<std::vector<Clip*>> g_clipsPassing;
+		// Per actor, what its last evaluation read and answered, kept until what it reads changes
+		struct Kept
+		{
+			Facts::ActorFacts facts;
+			std::vector<std::uint8_t> answers;
+			float evaluatedAt = -std::numeric_limits<float>::infinity();
+			bool bPending = false;  // a change waiting for the minimum gap
+			bool bAnswered = false;
+		};
+		std::unordered_map<RE::FormID, Kept> g_kept;
+		Facts::WorldFacts g_lastWorld;
+
+		// Readings the same to the bit, a NaN equal to itself
+		bool SameReadings(const std::vector<float>& a_values, const std::vector<std::vector<std::uint64_t>>& a_sets, const std::vector<float>& b_values, const std::vector<std::vector<std::uint64_t>>& b_sets)
+		{
+			return a_values.size() == b_values.size() && std::memcmp(a_values.data(), b_values.data(), a_values.size() * sizeof(float)) == 0 && a_sets == b_sets;
+		}
 
 		// How many rules held for the actor drained most recently -- the
 		// cheapest proof the evaluation is running and answering.
@@ -160,6 +175,9 @@ namespace Scheduler
 			g_nodeValues.assign(g_program.nodes.size(), 0.f);
 			g_ruleAnswers.assign(g_program.rules.size(), 0);
 			g_needsCompile = false;
+			// Everyone answered again through the new program
+			g_kept.clear();
+			g_lastWorld = {};
 			Actors::CaptureWorld(g_program, Current().world);
 			for (auto& actor : Current().actors) {
 				actor.Reset();
@@ -189,13 +207,24 @@ namespace Scheduler
 			ActorState::Track(g_handles);
 
 			frame.actors.resize(g_handles.size());
+
+			// What was kept for an actor out of range goes with it
+			std::unordered_set<RE::FormID> inRange;
+			for (const auto& handle : g_handles) {
+				if (const auto actor = handle.get()) {
+					inRange.insert(actor->GetFormID());
+				}
+			}
+			std::erase_if(g_kept, [&](const auto& a_entry) { return !inRange.contains(a_entry.first); });
 		}
 
 
 		// Phase-major on purpose. Interleaving the four per actor would read
 		// more naturally and would weld the two halves together; kept apart,
 		// the middle two become a parallel_for and nothing else moves.
-		void Drain(Timing::FrameSample& a_sample, std::size_t& a_outDrained)
+		// On a tick every actor is gathered and resolved; between ticks only those a value may have changed for. An actor
+		// is evaluated only when what it read changed, and not again before the minimum gap
+		void Drain(Timing::FrameSample& a_sample, std::size_t& a_outDrained, bool a_bTick, const std::unordered_set<RE::FormID>& a_touched, bool a_bWorldTouched)
 		{
 			auto& frame = Current();
 
@@ -205,11 +234,41 @@ namespace Scheduler
 				return;
 			}
 
+			const float now = Resolve::Now();
+			const float gap = (std::max)(Settings::fMinEvaluationGap, 0.f) / 1000.f;
+
+			// The world's readings: taken by the tick, again between ticks when one held for every actor changed
+			if (!a_bTick && a_bWorldTouched) {
+				Actors::CaptureWorld(g_program, frame.world);
+			}
+			bool bWorldChanged = false;
+			if (a_bTick || a_bWorldTouched) {
+				bWorldChanged = !SameReadings(g_lastWorld.values, g_lastWorld.sets, frame.world.values, frame.world.sets);
+				if (bWorldChanged) {
+					g_lastWorld = frame.world;
+				}
+			}
+
+			// The actors this pass reaches, by index
+			std::vector<std::size_t> reached;
+			reached.reserve(last);
+			for (auto i = first; i < last; ++i) {
+				const auto actor = g_handles[i].get();
+				const RE::FormID id = actor ? actor->GetFormID() : 0;
+				const auto kept = g_kept.find(id);
+				if (a_bTick || bWorldChanged || a_touched.contains(id) || kept == g_kept.end() || kept->second.bPending) {
+					reached.push_back(i);
+				}
+			}
+			if (reached.empty()) {
+				return;
+			}
+
 			// Gather -- the last phase that needs the game.
 			std::size_t gathered = 0;
 			{
 				Timing::Scope scope(a_sample.gather);
-				for (auto i = first; i < last; ++i) {
+				for (const auto i : reached) {
 					if (Actors::Gather(g_handles[i], g_program, frame.actors[i])) {
 						++gathered;
 					} else {
@@ -228,38 +287,82 @@ namespace Scheduler
 
 			// Evaluate -- pure. Reads the facts gathered above and nothing else,
 			// so this loop is the one that becomes a parallel_for.
+			std::vector<std::size_t> evaluated;
 			{
 				Timing::Scope scope(a_sample.evaluate);
-				g_held.resize(last);
-				g_clipsPassing.resize(last);
-				for (auto i = first; i < last; ++i) {
-					// An actor Gather skipped has nothing to answer from
-					if (frame.actors[i].values.size() != g_program.probes.size()) {
-						g_held[i].clear();
-						g_clipsPassing[i].clear();
+				for (const auto i : reached) {
+					auto& facts = frame.actors[i];
+					// An actor Gather skipped has nothing to answer from, and nothing held
+					if (facts.values.size() != g_program.probes.size()) {
+						if (const auto actor = g_handles[i].get()) {
+							g_kept.erase(actor->GetFormID());
+						}
 						continue;
 					}
+					auto& kept = g_kept[facts.formID];
+					if (bWorldChanged || !kept.bAnswered || !SameReadings(kept.facts.values, kept.facts.sets, facts.values, facts.sets)) {
+						kept.facts = facts;
+						kept.bPending = true;
+					}
 					auto& log = ModifierLog::GetSingleton();
-					const bool bTraced = log.ShouldLogActor(frame.actors[i].formID);
-					const bool bInspected = frame.actors[i].formID == inspected;
-					Program::Evaluate(g_program, frame.world, frame.actors[i], bTraced || bInspected, g_nodeValues, g_ruleAnswers);
+					const bool bTraced = log.ShouldLogActor(facts.formID);
+					const bool bInspected = facts.formID == inspected;
+					// The log and the editor read every tick's answers
+					const bool bForced = a_bTick && (bTraced || bInspected);
+					if (!bForced && !(kept.bPending && now - kept.evaluatedAt >= gap)) {
+						continue;
+					}
+					Program::Evaluate(g_program, frame.world, facts, bTraced || bInspected, g_nodeValues, g_ruleAnswers);
+					kept.answers = g_ruleAnswers;
+					kept.evaluatedAt = now;
+					kept.bPending = false;
+					kept.bAnswered = true;
+					evaluated.push_back(i);
 					if (bInspected) {
-						Inspect(frame.world, frame.actors[i]);
+						Inspect(frame.world, facts);
 						bInspectedAnswered = true;
 					}
 					if (bTraced) {
 						logged.emplace(i, ModifierLog::TraceConditions(g_program, g_nodeValues, g_ruleAnswers, g_handles[i].get().get()));
 					}
-					auto& held = g_held[i];
-					auto& passing = g_clipsPassing[i];
+					if (!g_program.functionRules.empty()) {
+						g_functionAnswers[facts.formID] = g_ruleAnswers;
+					}
+				}
+			}
+
+			// Not driven: gathered and answered for the editor, nothing applied
+			if (a_bTick && inspected && !bInspectedAnswered) {
+				if (auto* actor = inspectedRefr->As<RE::Actor>(); actor && Actors::Gather(actor->GetHandle(), g_program, g_inspectedFacts)) {
+					Program::Evaluate(g_program, frame.world, g_inspectedFacts, true, g_nodeValues, g_ruleAnswers);
+					Inspect(frame.world, g_inspectedFacts);
+				}
+			}
+
+			if (!evaluated.empty()) {
+				g_matchedLast = static_cast<std::size_t>(
+					std::count(g_ruleAnswers.begin(), g_ruleAnswers.end(), std::uint8_t{ 1 }));
+			}
+
+			// Channels wait for the scan: until it finishes they would not know what they can drive
+			if (Scan::Scanner::GetSingleton().IsFinished()) {
+				// Resolve -- pure but for the clock: each actor's active set from what held for it when last answered. On a
+				// tick every actor, for the transitions and clips the clock alone moves, and a modifier switched off since
+				Timing::Scope scope(a_sample.resolve);
+				const auto& resolved = a_bTick ? reached : evaluated;
+				std::vector<const SubMod*> held;
+				std::vector<Clip*> passing;
+				for (const auto i : resolved) {
+					const auto actor = g_handles[i].get();
+					const auto kept = actor ? g_kept.find(actor->GetFormID()) : g_kept.end();
+					if (kept == g_kept.end() || !kept->second.bAnswered || kept->second.answers.size() != g_program.rules.size()) {
+						continue;
+					}
 					held.clear();
 					passing.clear();
-					if (!g_program.functionRules.empty()) {
-						g_functionAnswers[frame.actors[i].formID] = g_ruleAnswers;
-					}
 					for (std::size_t r = 0; r < g_program.rules.size(); ++r) {
 						const auto& rule = g_program.rules[r];
-						if (!g_ruleAnswers[r] || !rule.owner || rule.owner->IsDisabled() || rule.conditions) {
+						if (!kept->second.answers[r] || !rule.owner || rule.owner->IsDisabled() || rule.conditions) {
 							continue;
 						}
 						if (rule.bModifier) {
@@ -268,41 +371,13 @@ namespace Scheduler
 							passing.push_back(const_cast<Clip*>(static_cast<const Clip*>(rule.owner)));
 						}
 					}
-				}
-			}
-
-			// Not driven: gathered and answered for the editor, nothing applied
-			if (inspected && !bInspectedAnswered) {
-				if (auto* actor = inspectedRefr->As<RE::Actor>(); actor && Actors::Gather(actor->GetHandle(), g_program, g_inspectedFacts)) {
-					Program::Evaluate(g_program, frame.world, g_inspectedFacts, true, g_nodeValues, g_ruleAnswers);
-					Inspect(frame.world, g_inspectedFacts);
-				}
-			}
-
-			g_matchedLast = static_cast<std::size_t>(
-				std::count(g_ruleAnswers.begin(), g_ruleAnswers.end(), std::uint8_t{ 1 }));
-
-			// Channels wait for the scan: until it finishes they would not know what they can drive
-			if (Scan::Scanner::GetSingleton().IsFinished()) {
-				// Resolve -- pure but for the clock: each actor's active set from what held for it
-				{
-					Timing::Scope scope(a_sample.resolve);
-					const float now = Resolve::Now();
-					for (auto i = first; i < last; ++i) {
-						const auto actor = g_handles[i].get();
-						if (const auto state = actor ? ActorState::Get(actor->GetHandle()) : nullptr) {
-							Resolve::Tick(*state, g_held[i], now);
-							ClipPlayer::Tick(*state, actor.get(), g_clipsPassing[i], now);
-							if (logged && logged->first == i) {
-								ModifierLog::GetSingleton().OnTick(*state, std::move(logged->second));
-							}
+					if (const auto state = ActorState::Get(actor->GetHandle())) {
+						Resolve::Tick(*state, held, now);
+						ClipPlayer::Tick(*state, actor.get(), passing, now);
+						if (logged && logged->first == i) {
+							ModifierLog::GetSingleton().OnTick(*state, std::move(logged->second));
 						}
 					}
-				}
-
-				// Apply -- back on the main thread.
-				{
-					Timing::Scope scope(a_sample.apply);
 				}
 			}
 
@@ -342,6 +417,7 @@ namespace Scheduler
 	{
 		g_accumulator = 0.f;
 		g_handles.clear();
+		g_kept.clear();
 	}
 
 	void Advance(float a_realDeltaSeconds)
@@ -389,12 +465,23 @@ namespace Scheduler
 			bTickFired = true;
 		}
 
-		// Everything captured, in the frame the tick fired. Spreading it over
-		// the frames that follow is a separate decision.
+		// Who a value may have changed for since the last frame
+		std::vector<RE::FormID> touchedList;
+		bool bWorldTouched = false;
+		Resources::TakeTouched(touchedList, bWorldTouched);
+
+		// Everything captured, in the frame the tick fired; between ticks, the actors a value may have changed for and those
+		// waiting out the gap. An edit waits for the tick, which compiles it first
 		std::size_t drained = 0;
+		bool bDrained = false;
 		if (bTickFired && !g_handles.empty()) {
 			CompileIfNeeded(sample);
-			Drain(sample, drained);
+			Drain(sample, drained, true, { touchedList.begin(), touchedList.end() }, bWorldTouched);
+			bDrained = true;
+		} else if (!g_needsCompile && !g_handles.empty() &&
+				   (bWorldTouched || !touchedList.empty() || std::ranges::any_of(g_kept, [](const auto& a_entry) { return a_entry.second.bPending; }))) {
+			Drain(sample, drained, false, { touchedList.begin(), touchedList.end() }, bWorldTouched);
+			bDrained = true;
 		}
 
 		const auto tickMs = sample.compile + sample.capture + sample.gather + sample.evaluate +
@@ -413,9 +500,9 @@ namespace Scheduler
 			g_timings.gate.Add(sample.gate);
 			g_timings.frame.Add(frameMs);
 
-			// Only on a frame a tick fired, and gated on that rather than on a
+			// Only on a frame a tick fired or a change was answered, and gated on that rather than on a
 			// measured value: a phase too fast to measure still ran.
-			if (bTickFired) {
+			if (bDrained) {
 				if (sample.compile > 0.f) {
 				g_timings.compile.Add(sample.compile);
 			}

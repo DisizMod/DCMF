@@ -3465,7 +3465,7 @@ namespace Conditions
 
 	Program::Expr ScaleCondition::Compile(Program::Builder& a_builder) const
 	{
-		return a_builder.Compare(a_builder.Resource(BuiltinResources::Number("dcmf.scale", "The reference's scale.", [](RE::TESObjectREFR* a_refr) { return a_refr ? a_refr->GetScale() : kNoAnswer; })), comparisonComponent, numericComponent);
+		return a_builder.Compare(a_builder.Resource(BuiltinResources::Number("dcmf.scale", "The reference's scale.", [](RE::TESObjectREFR* a_refr) { return a_refr ? a_refr->GetScale() : kNoAnswer; }, Resources::Scope::Actor, BuiltinResources::Updates{ .safetySeconds = 2.f })), comparisonComponent, numericComponent);
 	}
 
 	Program::Expr HeightCondition::Compile(Program::Builder& a_builder) const
@@ -3476,7 +3476,7 @@ namespace Conditions
 			}
 			const auto actor = ActorOf(a_refr);
 			return actor ? actor->GetHeight() : a_refr->GetHeight();
-		})),
+		}, Resources::Scope::Actor, BuiltinResources::Updates{ .safetySeconds = 2.f })),
 			comparisonComponent, numericComponent);
 	}
 
@@ -3488,7 +3488,7 @@ namespace Conditions
 			}
 			const auto actor = ActorOf(a_refr);
 			return actor ? actor->GetWeight() : a_refr->GetWeight();
-		})),
+		}, Resources::Scope::Actor, BuiltinResources::Updates{ .safetySeconds = 2.f })),
 			comparisonComponent, numericComponent);
 	}
 
@@ -3567,7 +3567,7 @@ namespace Conditions
 				count += data.first;
 			}
 			return static_cast<float>(count);
-		});
+		}, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kContainer, .safetySeconds = 5.f });
 		return a_builder.Compare(a_builder.Resource(key), comparisonComponent, numericComponent);
 	}
 
@@ -3587,7 +3587,7 @@ namespace Conditions
 		const auto key = BuiltinResources::Number(bLeft ? "dcmf.equippedWeight.left" : "dcmf.equippedWeight.right", "The weight of what the actor holds in that hand.", OffActor([bLeft](RE::Actor* a_actor) {
 			const auto form = a_actor->GetEquippedObject(bLeft);
 			return form ? form->GetWeight() : 0.f;
-		}));
+		}), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f });
 		return a_builder.Compare(a_builder.Resource(key), comparisonComponent, numericComponent);
 	}
 
@@ -3614,7 +3614,7 @@ namespace Conditions
 				count += data.first;
 			}
 			return static_cast<float>(count);
-		});
+		}, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kContainer, .safetySeconds = 5.f });
 		return a_builder.Compare(a_builder.Resource(key), comparisonComponent, numericComponent);
 	}
 
@@ -3644,13 +3644,13 @@ namespace Conditions
 
 	Program::Expr LifeStateCondition::Compile(Program::Builder& a_builder) const
 	{
-		const auto key = BuiltinResources::Number("dcmf.lifeState", "The actor's life state.", OffActor([](RE::Actor* a_actor) { return static_cast<float>(a_actor->AsActorState()->GetLifeState()); }));
+		const auto key = BuiltinResources::Number("dcmf.lifeState", "The actor's life state.", OffActor([](RE::Actor* a_actor) { return static_cast<float>(a_actor->AsActorState()->GetLifeState()); }), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kDeath, .safetySeconds = 1.f });
 		return a_builder.Compare(a_builder.Resource(key), comparisonComponent, lifeStateComponent);
 	}
 
 	Program::Expr SitSleepStateCondition::Compile(Program::Builder& a_builder) const
 	{
-		const auto key = BuiltinResources::Number("dcmf.sitSleepState", "The actor's sit or sleep state.", OffActor([](RE::Actor* a_actor) { return static_cast<float>(a_actor->AsActorState()->GetSitSleepState()); }));
+		const auto key = BuiltinResources::Number("dcmf.sitSleepState", "The actor's sit or sleep state.", OffActor([](RE::Actor* a_actor) { return static_cast<float>(a_actor->AsActorState()->GetSitSleepState()); }), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kFurniture, .safetySeconds = 1.f });
 		return a_builder.Compare(a_builder.Resource(key), comparisonComponent, sitSleepStateComponent);
 	}
 
@@ -3664,7 +3664,7 @@ namespace Conditions
 			}
 			const float weight = changes->GetInventoryWeight();
 			return bPercent ? weight / a_actor->GetTotalCarryWeight() * 100.f : weight;
-		}));
+		}), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kContainer | BuiltinResources::Event::kEquip, .safetySeconds = 5.f });
 		return a_builder.Compare(a_builder.Resource(key), comparisonComponent, numericComponent);
 	}
 
@@ -3745,7 +3745,7 @@ namespace Conditions
 	Program::Expr IsMenuOpenCondition::Compile(Program::Builder& a_builder) const
 	{
 		const std::string menu = textComponent->GetTextValue().c_str();
-		return a_builder.Truthy(a_builder.ResourceWorld(BuiltinResources::Number("dcmf.menuOpen." + KeyOfText(menu), "Whether the menu is open.", [menu](RE::TESObjectREFR*) { return RE::UI::GetSingleton()->IsMenuOpen(menu) ? 1.f : 0.f; }, Resources::Scope::World)));
+		return a_builder.Truthy(a_builder.ResourceWorld(BuiltinResources::Number("dcmf.menuOpen." + KeyOfText(menu), "Whether the menu is open.", [menu](RE::TESObjectREFR*) { return RE::UI::GetSingleton()->IsMenuOpen(menu) ? 1.f : 0.f; }, Resources::Scope::World, BuiltinResources::Updates{ .events = BuiltinResources::Event::kMenu })));
 	}
 
 
@@ -3761,7 +3761,7 @@ namespace Conditions
 		return FormIn(a_builder, this, formComponent, BuiltinResources::Form(bLeft ? "dcmf.equipped.left" : "dcmf.equipped.right", "What the actor holds in that hand.", [bLeft](RE::TESObjectREFR* a_refr) {
 			const auto actor = ActorOf(a_refr);
 			return actor ? actor->GetEquippedObject(bLeft) : nullptr;
-		}));
+		}, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f }));
 	}
 
 	Program::Expr IsEquippedTypeCondition::Compile(Program::Builder& a_builder) const
@@ -3769,7 +3769,7 @@ namespace Conditions
 		const bool bLeft = boolComponent->GetBoolValue();
 		const auto key = BuiltinResources::Number(bLeft ? "dcmf.equippedType.left" : "dcmf.equippedType.right", "The type of what the actor holds in that hand.", OffActor([bLeft](RE::Actor* a_actor) {
 			return static_cast<float>(EquippedTypeOf(a_actor->GetEquippedObject(bLeft)));
-		}));
+		}), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f });
 		return a_builder.Compare(a_builder.Resource(key), Conditions::ComparisonOperator::kEqual, a_builder.Number(numericComponent->value));
 	}
 
@@ -3780,12 +3780,12 @@ namespace Conditions
 			const auto actor = ActorOf(a_refr);
 			const auto equipped = actor ? actor->GetEquippedObject(bLeft) : nullptr;
 			KeywordsOf(equipped ? equipped->As<RE::BGSKeywordForm>() : nullptr, a_out);
-		}));
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f }));
 	}
 
 	Program::Expr IsEquippedPowerCondition::Compile(Program::Builder& a_builder) const
 	{
-		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.equippedPower", "The power or the voice the actor has equipped.", [](RE::TESObjectREFR* a_refr) { return GetEquippedPower(a_refr); }));
+		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.equippedPower", "The power or the voice the actor has equipped.", [](RE::TESObjectREFR* a_refr) { return GetEquippedPower(a_refr); }, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f }));
 	}
 
 	// A form in the row: one test of what the actor wears, merged with its siblings asking the same
@@ -3931,7 +3931,7 @@ namespace Conditions
 		const bool bActive = boolComponent->GetBoolValue();
 		return FormIn(a_builder, this, formComponent, BuiltinResources::FormSet(bActive ? "dcmf.effects.active" : "dcmf.effects", "The magic effects on the actor.", [bActive](RE::TESObjectREFR* a_refr, std::vector<RE::FormID>& a_out) {
 			ForEachEffect(ActorOf(a_refr), bActive, [&](RE::EffectSetting* a_effect) { a_out.push_back(a_effect->GetFormID()); });
-		}));
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kMagicEffect, .safetySeconds = 2.f }));
 	}
 
 	Program::Expr HasMagicEffectWithKeywordCondition::Compile(Program::Builder& a_builder) const
@@ -3939,7 +3939,7 @@ namespace Conditions
 		const bool bActive = boolComponent->GetBoolValue();
 		return KeywordsIn(a_builder, keywordComponent->keyword, BuiltinResources::FormSet(bActive ? "dcmf.effectKeywords.active" : "dcmf.effectKeywords", "The keywords of the magic effects on the actor.", [bActive](RE::TESObjectREFR* a_refr, std::vector<RE::FormID>& a_out) {
 			ForEachEffect(ActorOf(a_refr), bActive, [&](RE::EffectSetting* a_effect) { KeywordsOf(a_effect, a_out); });
-		}));
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kMagicEffect, .safetySeconds = 2.f }));
 	}
 
 	Program::Expr HasPerkCondition::Compile(Program::Builder& a_builder) const
@@ -3974,17 +3974,17 @@ namespace Conditions
 	}
 	Program::Expr IsClassCondition::Compile(Program::Builder& a_builder) const
 	{
-		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.class", "The actor's class.", [](RE::TESObjectREFR* a_refr) { return GetTESClass(a_refr); }));
+		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.class", "The actor's class.", [](RE::TESObjectREFR* a_refr) { return GetTESClass(a_refr); }, Resources::Scope::Actor, BuiltinResources::Updates{ .bOnce = true }));
 	}
 
 	Program::Expr IsCombatStyleCondition::Compile(Program::Builder& a_builder) const
 	{
-		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.combatStyle", "The actor's combat style.", [](RE::TESObjectREFR* a_refr) { return GetCombatStyle(a_refr); }));
+		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.combatStyle", "The actor's combat style.", [](RE::TESObjectREFR* a_refr) { return GetCombatStyle(a_refr); }, Resources::Scope::Actor, BuiltinResources::Updates{ .bOnce = true }));
 	}
 
 	Program::Expr IsVoiceTypeCondition::Compile(Program::Builder& a_builder) const
 	{
-		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.voiceType", "The actor's voice type.", [](RE::TESObjectREFR* a_refr) { return GetVoiceType(a_refr); }));
+		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.voiceType", "The actor's voice type.", [](RE::TESObjectREFR* a_refr) { return GetVoiceType(a_refr); }, Resources::Scope::Actor, BuiltinResources::Updates{ .bOnce = true }));
 	}
 
 	Program::Expr IsAttackingCondition::Compile(Program::Builder& a_builder) const
@@ -4021,7 +4021,7 @@ namespace Conditions
 			for (auto* location = a_refr ? a_refr->GetCurrentLocation() : nullptr; location; location = location->parentLoc) {
 				a_out.push_back(location->GetFormID());
 			}
-		}));
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kCell | BuiltinResources::Event::kLocation, .safetySeconds = 2.f }));
 	}
 
 	Program::Expr HasRefTypeCondition::Compile(Program::Builder& a_builder) const
@@ -4033,12 +4033,12 @@ namespace Conditions
 
 	Program::Expr IsParentCellCondition::Compile(Program::Builder& a_builder) const
 	{
-		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.parentCell", "The cell the reference is in.", [](RE::TESObjectREFR* a_refr) { return a_refr ? a_refr->GetParentCell() : nullptr; }));
+		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.parentCell", "The cell the reference is in.", [](RE::TESObjectREFR* a_refr) { return a_refr ? a_refr->GetParentCell() : nullptr; }, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kCell | BuiltinResources::Event::kLocation, .safetySeconds = 2.f }));
 	}
 
 	Program::Expr IsWorldSpaceCondition::Compile(Program::Builder& a_builder) const
 	{
-		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.worldspace", "The worldspace the reference is in.", [](RE::TESObjectREFR* a_refr) { return a_refr ? a_refr->GetWorldspace() : nullptr; }));
+		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.worldspace", "The worldspace the reference is in.", [](RE::TESObjectREFR* a_refr) { return a_refr ? a_refr->GetWorldspace() : nullptr; }, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kCell | BuiltinResources::Event::kLocation, .safetySeconds = 2.f }));
 	}
 
 	Program::Expr IsMovementDirectionCondition::Compile(Program::Builder& a_builder) const
@@ -4063,7 +4063,7 @@ namespace Conditions
 
 	Program::Expr IsEquippedShoutCondition::Compile(Program::Builder& a_builder) const
 	{
-		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.equippedShout", "The shout the actor has equipped.", [](RE::TESObjectREFR* a_refr) { return GetEquippedShout(a_refr); }));
+		return FormIn(a_builder, this, formComponent, BuiltinResources::Form("dcmf.equippedShout", "The shout the actor has equipped.", [](RE::TESObjectREFR* a_refr) { return GetEquippedShout(a_refr); }, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f }));
 	}
 
 	Program::Expr IsCurrentPackageCondition::Compile(Program::Builder& a_builder) const
@@ -4081,7 +4081,7 @@ namespace Conditions
 		return KeywordsIn(a_builder, keywordComponent->keyword, BuiltinResources::FormSet(BuiltinResources::WornSlotKeywordsKey(*slot), "The keywords of what the actor wears in the slot.", [bit](RE::TESObjectREFR* a_refr, std::vector<RE::FormID>& a_out) {
 			const auto actor = ActorOf(a_refr);
 			KeywordsOf(actor ? actor->GetWornArmor(bit, true) : nullptr, a_out);
-		}, kWornInterval));
+		}, kWornInterval, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f }));
 	}
 
 	Program::Expr IsBlockingCondition::Compile(Program::Builder& a_builder) const
@@ -4090,7 +4090,7 @@ namespace Conditions
 	}
 	Program::Expr IsCombatStateCondition::Compile(Program::Builder& a_builder) const
 	{
-		const auto key = BuiltinResources::Number("dcmf.combatState", "The actor's combat state.", OffActor([](RE::Actor* a_actor) { return static_cast<float>(Actor_GetCombatState(a_actor)); }));
+		const auto key = BuiltinResources::Number("dcmf.combatState", "The actor's combat state.", OffActor([](RE::Actor* a_actor) { return static_cast<float>(Actor_GetCombatState(a_actor)); }), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kCombat, .safetySeconds = 1.f });
 		return a_builder.Compare(a_builder.Resource(key), Conditions::ComparisonOperator::kEqual, a_builder.Number(combatStateComponent->value));
 	}
 
@@ -4135,7 +4135,7 @@ namespace Conditions
 		const bool bBase = boolComponent->GetBoolValue();
 		return FormIn(a_builder, this, formComponent, BuiltinResources::Form(bBase ? "dcmf.furniture.base" : "dcmf.furniture.ref", "The furniture the actor occupies.", [bBase](RE::TESObjectREFR* a_refr) {
 			return a_refr ? Utils::GetCurrentFurnitureForm(a_refr, bBase) : nullptr;
-		}));
+		}, Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kFurniture, .safetySeconds = 1.f }));
 	}
 
 	Program::Expr CurrentFurnitureHasKeywordCondition::Compile(Program::Builder& a_builder) const
@@ -4144,7 +4144,7 @@ namespace Conditions
 		return KeywordsIn(a_builder, keywordComponent->keyword, BuiltinResources::FormSet(bBase ? "dcmf.furnitureKeywords.base" : "dcmf.furnitureKeywords.ref", "The keywords of the furniture the actor occupies.", [bBase](RE::TESObjectREFR* a_refr, std::vector<RE::FormID>& a_out) {
 			const auto furniture = a_refr ? Utils::GetCurrentFurnitureForm(a_refr, bBase) : nullptr;
 			KeywordsOf(furniture ? furniture->As<RE::BGSKeywordForm>() : nullptr, a_out);
-		}));
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kFurniture, .safetySeconds = 1.f }));
 	}
 
 	Program::Expr HasTargetCondition::Compile(Program::Builder& a_builder) const
@@ -4202,7 +4202,7 @@ namespace Conditions
 			return a_builder.False();
 		}
 		const auto stage = static_cast<std::uint16_t>(Fixed(stageIndexComponent));
-		return a_builder.Truthy(a_builder.ResourceWorld(BuiltinResources::Number(std::format("dcmf.questStage.{}.{}", HexOf(quest->GetFormID()), stage), "Whether the quest's stage is done.", [quest, stage](RE::TESObjectREFR*) { return TESQuest_GetStageDone(quest, stage) ? 1.f : 0.f; }, Resources::Scope::World)));
+		return a_builder.Truthy(a_builder.ResourceWorld(BuiltinResources::Number(std::format("dcmf.questStage.{}.{}", HexOf(quest->GetFormID()), stage), "Whether the quest's stage is done.", [quest, stage](RE::TESObjectREFR*) { return TESQuest_GetStageDone(quest, stage) ? 1.f : 0.f; }, Resources::Scope::World, BuiltinResources::Updates{ .events = BuiltinResources::Event::kQuestStage, .safetySeconds = 5.f })));
 	}
 
 	Program::Expr CurrentTargetRelativeAngleCondition::Compile(Program::Builder& a_builder) const
@@ -4434,7 +4434,7 @@ namespace Conditions
 		return KeywordsIn(a_builder, keywordComponent->keyword, BuiltinResources::FormSet("dcmf.locationKeywords", "The keywords of the location the reference is in.", [](RE::TESObjectREFR* a_refr, std::vector<RE::FormID>& a_out) {
 			const auto location = a_refr ? a_refr->GetCurrentLocation() : nullptr;
 			KeywordsOf(location ? location->As<RE::BGSKeywordForm>() : nullptr, a_out);
-		}));
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kCell | BuiltinResources::Event::kLocation, .safetySeconds = 2.f }));
 	}
 
 	Program::Expr IsAttackTypeKeywordCondition::Compile(Program::Builder& a_builder) const
@@ -4492,7 +4492,7 @@ namespace Conditions
 				if (enchantment->data.baseEnchantment) {
 					a_out.push_back(enchantment->data.baseEnchantment->GetFormID());
 				}
-		});
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f });
 		return FormIn(a_builder, this, formComponent, key);
 	}
 
@@ -4508,7 +4508,7 @@ namespace Conditions
 				return;
 			}
 			KeywordsOf(enchantment->As<RE::BGSKeywordForm>(), a_out);
-		});
+		}, 0.f, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f });
 		return KeywordsIn(a_builder, keywordComponent->keyword, key);
 	}
 
@@ -4601,7 +4601,7 @@ namespace Conditions
 					a_out.push_back(i);
 				}
 			}
-		}, kWornInterval)), { *slot });
+		}, kWornInterval, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f })), { *slot });
 	}
 
 	Program::Expr IsGhostCondition::Compile(Program::Builder& a_builder) const
@@ -4640,7 +4640,7 @@ namespace Conditions
 			const auto form = a_actor->GetEquippedObject(bLeft);
 			const auto weapon = form && form->formType == RE::FormType::Weapon ? form->As<RE::TESObjectWEAP>() : nullptr;
 			return weapon && weapon->IsBound() ? 1.f : 0.f;
-		}))));
+		}), Resources::Scope::Actor, BuiltinResources::Updates{ .events = BuiltinResources::Event::kEquip, .safetySeconds = 5.f })));
 	}
 
 	Program::Expr IsOnStairsCondition::Compile(Program::Builder& a_builder) const

@@ -452,7 +452,13 @@ namespace UI
 				Settings::WriteSettings();
 			}
 			ImGui::SameLine();
-			UICommon::HelpMarker("How often an actor is looked at. Conditions answer questions about AI state, which does not change at frame rate.");
+			UICommon::HelpMarker("How often the values with no engine event, as movement speed or light level, are read again. Values with an event, as what is worn, are read when it fires.");
+
+			if (ImGui::SliderFloat("Minimum time between evaluations", &Settings::fMinEvaluationGap, 0.f, 1000.f, "%.0f ms", ImGuiSliderFlags_AlwaysClamp)) {
+				Settings::WriteSettings();
+			}
+			ImGui::SameLine();
+			UICommon::HelpMarker("An actor's conditions are answered again as soon as something they read changes, but never sooner than this after the last time. 0 answers on the next frame.");
 
 			if (ImGui::Checkbox("Pause in RaceMenu", &Settings::bPauseInRaceMenu)) {
 				Settings::WriteSettings();

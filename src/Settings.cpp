@@ -49,6 +49,7 @@ void Settings::ReadSettings()
 		ReadUInt32Setting(ini, "General", "uTargetMode", uTargetMode);
 		ReadFloatSetting(ini, "General", "fTargetDistance", fTargetDistance);
 		ReadFloatSetting(ini, "General", "fTickRate", fTickRate);
+		ReadFloatSetting(ini, "General", "fMinEvaluationGap", fMinEvaluationGap);
 		ReadBoolSetting(ini, "General", "bPauseInRaceMenu", bPauseInRaceMenu);
 		ReadFloatSetting(ini, "General", "fDefaultTransitionTime", fDefaultTransitionTime);
 
@@ -148,6 +149,7 @@ void Settings::WriteSettings()
 	ini.SetLongValue("General", "uTargetMode", uTargetMode);
 	ini.SetDoubleValue("General", "fTargetDistance", fTargetDistance);
 	ini.SetDoubleValue("General", "fTickRate", fTickRate);
+	ini.SetDoubleValue("General", "fMinEvaluationGap", fMinEvaluationGap);
 	ini.SetBoolValue("General", "bPauseInRaceMenu", bPauseInRaceMenu);
 	ini.SetDoubleValue("General", "fDefaultTransitionTime", fDefaultTransitionTime);
 
