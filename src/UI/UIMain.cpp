@@ -17,7 +17,6 @@
 #include "MeshThumbs.h"
 #include "../scan/Scan.h"
 #include "../ClipPlayer.h"
-#include "../apply/Cbpc.h"
 #include "../ModifierLog.h"
 #include "../Preview.h"
 #include "../Resources.h"
@@ -5721,24 +5720,6 @@ namespace UI
 				}
 				ImGui::SameLine();
 				UICommon::HelpMarker("Draws the fitted colliders over the scene: blue the parts that push, orange the parts pushed, and white dots where the breast bones are. Where the body hides one it is drawn faint.");
-				ImGui::Separator();
-				// TODO: temporary, to compare the fit with hand-made configs
-				if (ImGui::Button("Write fit for comparison")) {
-					Apply::Cbpc::WriteComparison();
-				}
-				ImGui::Separator();
-				{
-					const auto& presets = Apply::Cbpc::HotSwapPresets();
-					int pick = Apply::Cbpc::HotSwapPick();
-					ImGui::SetNextItemWidth(UICommon::FirstColumnWidth(_firstColumnWidthPercent));
-					if (ImGui::SliderInt("##hotswapPreset", &pick, 0, static_cast<int>(presets.size()), pick == 0 ? "None" : presets[static_cast<std::size_t>(pick - 1)].c_str(), ImGuiSliderFlags_AlwaysClamp)) {
-						Apply::Cbpc::SetHotSwapPick(pick);
-					}
-					UICommon::SecondColumn(_firstColumnWidthPercent);
-					ImGui::TextUnformatted("HotSwap preset drawn");
-					ImGui::SameLine();
-					UICommon::HelpMarker("Draws a HotSwap preset's colliders on the player in green, at the player's weight, beside the fitted ones.");
-				}
 				ImGui::Separator();
 			},
 			[]() {

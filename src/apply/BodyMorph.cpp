@@ -846,34 +846,6 @@ namespace Apply
 		ReadPosition(a_vertex, a_bHalves, a_x, a_y, a_z);
 	}
 
-	void BodyMorph::MorphedPositions(const BodyMorphShape& a_shape, const std::vector<NumberSample>& a_weights, std::vector<RE::NiPoint3>& a_out)
-	{
-		a_out.resize(a_shape.vertexCount);
-		for (std::uint32_t v = 0; v < a_shape.vertexCount; ++v) {
-			ReadPosition(a_shape.base->data() + static_cast<std::size_t>(v) * a_shape.stride, a_shape.bHalves, a_out[v].x, a_out[v].y, a_out[v].z);
-		}
-		const auto& morphs = (*a_shape.tri)[a_shape.shape].morphs;
-		auto weight = a_weights.begin();
-		for (const auto& [index, morph] : a_shape.morphs) {
-			while (weight != a_weights.end() && weight->index < index) {
-				++weight;
-			}
-			if (weight == a_weights.end()) {
-				break;
-			}
-			if (weight->index != index || weight->value == 0.f) {
-				continue;
-			}
-			for (const auto& delta : morphs[morph].deltas) {
-				if (delta.index < a_shape.vertexCount) {
-					a_out[delta.index].x += delta.x * weight->value;
-					a_out[delta.index].y += delta.y * weight->value;
-					a_out[delta.index].z += delta.z * weight->value;
-				}
-			}
-		}
-	}
-
 	void BodyMorph::Upload()
 	{
 		auto* renderer = RE::BSGraphics::Renderer::GetSingleton();

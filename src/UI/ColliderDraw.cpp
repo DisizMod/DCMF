@@ -353,8 +353,7 @@ float4 PS(VSOut i) : SV_Target
 			const float pushed[4]{ 1.f, 0.55f, 0.1f, 1.f };
 			const float pushing[4]{ 0.2f, 0.85f, 1.f, 1.f };
 			const float bone[4]{ 1.f, 1.f, 1.f, 1.f };
-			const float reference[4]{ 0.3f, 1.f, 0.3f, 1.f };
-			std::copy_n(collider.bReference ? reference : collider.bBone ? bone : collider.bAffected ? pushed : pushing, 4, lines.colour);
+			std::copy_n(collider.bBone ? bone : collider.bAffected ? pushed : pushing, 4, lines.colour);
 			Outline(lines, *placed, collider.bCapsule);
 		}
 		if (vertices.empty()) {

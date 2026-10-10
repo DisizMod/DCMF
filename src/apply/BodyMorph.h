@@ -20,9 +20,6 @@ namespace Apply
 		[[nodiscard]] static float Half(std::uint16_t a_half);
 		// A vertex's position as stored, as halves or as floats
 		static void ReadVertexPosition(const std::uint8_t* a_vertex, bool a_bHalves, float& a_x, float& a_y, float& a_z);
-		// A bound shape's positions in skin space: its base plus the weighted morphs
-		static void MorphedPositions(const BodyMorphShape& a_shape, const std::vector<NumberSample>& a_weights, std::vector<RE::NiPoint3>& a_out);
-
 		// A shape's TRI and which of its morphs each body morph channel drives, as a bind finds them; none when no TRI it is
 		// stamped with names it
 		struct Morphable

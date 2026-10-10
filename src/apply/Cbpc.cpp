@@ -184,7 +184,6 @@ namespace Apply::Cbpc
 			RE::NiPoint3 b;
 			float radiusA = 0.f;
 			float radiusB = 0.f;
-			std::size_t vertices = 0;           // TODO: temporary, how many it was fitted from
 			bool bPushes = true;
 		};
 
@@ -452,47 +451,6 @@ namespace Apply::Cbpc
 			return best;
 		}
 
-		// The biggest sphere around the start whose nearest skin is the breast's and faces away from it: inside the breast,
-		// touching its skin, never reaching through it nor sinking into the chest behind
-		std::optional<std::pair<RE::NiPoint3, float>> Inscribed(const std::vector<Placed>& a_cloud, const RE::NiPoint3& a_start)
-		{
-			const auto score = [&](const RE::NiPoint3& a_centre) {
-				float nearest = std::numeric_limits<float>::max();
-				const Placed* closest = nullptr;
-				for (const auto& point : a_cloud) {
-					if (const float d = (point.p - a_centre).SqrLength(); d < nearest) {
-						nearest = d;
-						closest = &point;
-					}
-				}
-				if (!closest || !closest->bBreast || (a_centre - closest->p).Dot(closest->n) > 0.f) {
-					return -1.f;
-				}
-				return std::sqrt(nearest);
-			};
-			auto best = a_start;
-			float radius = score(a_start);
-			for (const float step : { 1.5f, .5f }) {
-				const auto centre = best;
-				const int reach = step > 1.f ? 3 : 2;
-				for (int x = -reach; x <= reach; ++x) {
-					for (int y = -reach; y <= reach; ++y) {
-						for (int z = -reach; z <= reach; ++z) {
-							const RE::NiPoint3 at = centre + RE::NiPoint3{ static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) } * step;
-							if (const float r = score(at); r > radius) {
-								radius = r;
-								best = at;
-							}
-						}
-					}
-				}
-			}
-			if (radius <= .3f) {
-				return std::nullopt;
-			}
-			return std::pair{ best, radius };
-		}
-
 		// One skinned shape of the actor's naked body as the fit reads it, from the body's file at both weights: the partitions
 		// and the skin data the loaded model owns, its bones' names, and the TRI DCMF morphs it through
 		struct ShapeInput
@@ -501,7 +459,6 @@ namespace Apply::Cbpc
 			RE::NiPointer<RE::NiSkinPartition> partitionHigh;  // the weight 100 body's, none when the file has one weight
 			RE::NiPointer<RE::NiSkinData> data;
 			std::vector<RE::BSFixedString> bones;  // the engine's pooled names, shared rather than copied
-			std::shared_ptr<const std::vector<std::uint8_t>> base;
 			std::shared_ptr<const std::vector<Scan::Tri::BodyTriShapeDeltas>> tri;
 			std::size_t triShape = 0;
 			std::vector<std::pair<std::uint32_t, std::uint32_t>> morphs;
@@ -839,7 +796,6 @@ namespace Apply::Cbpc
 				}
 				const float offset = IsBreast(bone.node) ? a_input.breastOffset : a_input.offset;
 				fitted.push_back(bone.bCapsule ? FitCapsule(bone, best[l], offset) : FitSphere(bone, best[l], offset));
-				fitted.back().vertices = best[l].size();
 				// A breast's sphere the biggest under its own patch, in place of one fitted to the patch's skin
 				if (IsBreast(bone.node) && breastToBone[l] && !cloud.empty()) {
 					const auto& toBone = *breastToBone[l];
@@ -1075,7 +1031,6 @@ namespace Apply::Cbpc
 
 	void Frame()
 	{
-		DrawHotSwap();
 		std::erase_if(g_orphans, [](const auto& a_fit) { return a_fit.wait_for(std::chrono::seconds(0)) == std::future_status::ready; });
 		static bool bWasActive = Active();
 		const bool bActive = Active();
@@ -1135,14 +1090,7 @@ namespace Apply::Cbpc
 					entry.bPresentRead = true;
 				}
 			}
-			const auto gatherStart = Clock::now();
-			auto input = body.empty() ? std::nullopt : Gather(actor, body, weights, entry.present);
-			// TODO: temporary, what the main thread spends to start a fit
-			if (static int said = 0; said < 5) {
-				++said;
-				logger::info("[cbpcdbg] gather for {:08X}: {:.3f} ms", entry.actor, std::chrono::duration<double, std::milli>(Clock::now() - gatherStart).count());
-			}
-			if (input) {
+			if (auto input = body.empty() ? std::nullopt : Gather(actor, body, weights, entry.present)) {
 				entry.pending = std::async(std::launch::async, [input = std::move(*input)]() { return Compute(input); });
 				entry.weights = weights;
 				entry.partsGeneration = parts->generation;
@@ -1190,176 +1138,5 @@ namespace Apply::Cbpc
 		Forget(&a_state);
 	}
 
-	void WriteComparison()
-	{
-		const auto* player = RE::PlayerCharacter::GetSingleton();
-		const auto entry = std::ranges::find_if(g_entries, [&](const auto& a_entry) { return player && a_entry.second.actor == player->GetFormID(); });
-		if (entry == g_entries.end() || !entry->second.bFitted) {
-			logger::warn("cbpc: no fitted colliders on the player to write");
-			return;
-		}
-		auto* state = const_cast<ActorState::State*>(entry->first);
-		const auto sampled = state->sampled.With([](const auto& a_sampled) { return a_sampled; });
-		const auto directory = SKSE::log::log_directory();
-		if (!directory) {
-			return;
-		}
-		const auto now = std::chrono::zoned_time(std::chrono::current_zone(), std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
-		const auto path = *directory / std::format("DCMF-cbpcfit-{:%Y%m%d-%H%M%S}.txt", now);
-		std::ofstream out(path);
-		out << std::format("# DCMF fitted colliders, bone space, as a CBPC config writes them\n# weight {:g}, preset '{}', body offset {:g}, breast offset {:g}\n", player->GetWeight(), sampled ? sampled->presetName : std::string{}, Settings::fPatchCbpcSkinOffset, Settings::fPatchCbpcBreastOffset);
-		for (const auto& fitted : entry->second.fitted) {
-			out << std::format("[{}] # {} vertices\n", fitted.node, fitted.vertices);
-			if (fitted.bCapsule) {
-				out << std::format("{:.2f},{:.2f},{:.2f},{:.2f} & {:.2f},{:.2f},{:.2f},{:.2f}\n", fitted.a.x, fitted.a.y, fitted.a.z, fitted.radiusA, fitted.b.x, fitted.b.y, fitted.b.z, fitted.radiusB);
-			} else {
-				out << std::format("{:.2f},{:.2f},{:.2f},{:.2f}\n", fitted.a.x, fitted.a.y, fitted.a.z, fitted.radiusA);
-			}
-		}
-		logger::info("cbpc: wrote the player's fit to {}", path.string());
-	}
 
-	// TODO: temporary, a HotSwap preset's colliders drawn beside the fit
-	namespace
-	{
-		std::vector<std::filesystem::path> g_hotSwapFiles;
-		std::vector<std::string> g_hotSwapNames;
-		int g_hotSwapPick = 0;
-		int g_hotSwapDrawn = -1;
-		float g_hotSwapWeight = -1.f;
-
-		void FindHotSwap()
-		{
-			static bool bFound = false;
-			if (bFound) {
-				return;
-			}
-			bFound = true;
-			std::error_code error;
-			for (const auto& file : std::filesystem::directory_iterator("Data/SKSE/Plugins", error)) {
-				const auto name = file.path().filename().string();
-				if (name.starts_with("CBPCollisionConfig_JR") && name.ends_with(".txt")) {
-					g_hotSwapFiles.push_back(file.path());
-					g_hotSwapNames.push_back(name.substr(19, name.size() - 23));
-				}
-			}
-		}
-
-		// One "x,y,z,r" or "x,y,z,r & x,y,z,r" half of a line
-		bool ParseShape(std::string_view a_text, std::array<float, 8>& a_out, bool& a_bCapsule)
-		{
-			std::string text(a_text);
-			std::ranges::replace(text, '&', ',');
-			std::vector<float> values;
-			std::size_t at = 0;
-			while (at < text.size()) {
-				const auto comma = text.find(',', at);
-				const auto part = text.substr(at, comma == std::string::npos ? std::string::npos : comma - at);
-				try {
-					values.push_back(std::stof(part));
-				} catch (...) {
-					return false;
-				}
-				if (comma == std::string::npos) {
-					break;
-				}
-				at = comma + 1;
-			}
-			if (values.size() != 4 && values.size() != 8) {
-				return false;
-			}
-			a_bCapsule = values.size() == 8;
-			std::ranges::copy(values, a_out.begin());
-			return true;
-		}
-
-		std::vector<UI::ColliderDraw::Collider> ReadHotSwap(const std::filesystem::path& a_path, RE::Actor* a_actor, float a_weight)
-		{
-			std::vector<UI::ColliderDraw::Collider> out;
-			std::ifstream in(a_path);
-			std::string line;
-			std::string node;
-			while (std::getline(in, line)) {
-				if (const auto hash = line.find('#'); hash != std::string::npos) {
-					line.resize(hash);
-				}
-				while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back()))) {
-					line.pop_back();
-				}
-				if (line.empty()) {
-					continue;
-				}
-				if (line.front() == '[') {
-					const auto close = line.rfind(']');
-					node = close != std::string::npos ? line.substr(1, close - 1) : std::string{};
-					if (node == "Options" || node == "ExtraOptions" || node == "AffectedNodes" || node == "ColliderNodes" || node == "PlayerNodes") {
-						node.clear();
-					}
-					continue;
-				}
-				if (node.empty()) {
-					continue;
-				}
-				const auto bar = line.find('|');
-				std::array<float, 8> low{};
-				std::array<float, 8> high{};
-				bool bCapsule = false;
-				bool bHighCapsule = false;
-				if (!ParseShape(line.substr(0, bar), low, bCapsule)) {
-					continue;
-				}
-				high = low;
-				if (bar != std::string::npos && !ParseShape(std::string_view(line).substr(bar + 1), high, bHighCapsule)) {
-					high = low;
-				}
-				std::array<float, 8> v{};
-				for (std::size_t i = 0; i < v.size(); ++i) {
-					v[i] = low[i] + (high[i] - low[i]) * a_weight / 100.f;
-				}
-				UI::ColliderDraw::Collider collider{ .actor = a_actor->GetHandle(), .node = node, .end1 = { v[0], v[1], v[2] }, .radius1 = v[3], .bCapsule = bCapsule, .bReference = true };
-				if (bCapsule) {
-					collider.end2 = { v[4], v[5], v[6] };
-					collider.radius2 = v[7];
-				}
-				out.push_back(std::move(collider));
-			}
-			return out;
-		}
-	}
-
-	const std::vector<std::string>& HotSwapPresets()
-	{
-		FindHotSwap();
-		return g_hotSwapNames;
-	}
-
-	int HotSwapPick()
-	{
-		return g_hotSwapPick;
-	}
-
-	void SetHotSwapPick(int a_pick)
-	{
-		g_hotSwapPick = a_pick;
-	}
-
-	void DrawHotSwap()
-	{
-		auto* player = RE::PlayerCharacter::GetSingleton();
-		if (!player) {
-			return;
-		}
-		const float weight = player->GetWeight();
-		if (g_hotSwapPick == g_hotSwapDrawn && weight == g_hotSwapWeight) {
-			return;
-		}
-		g_hotSwapDrawn = g_hotSwapPick;
-		g_hotSwapWeight = weight;
-		FindHotSwap();
-		if (g_hotSwapPick <= 0 || g_hotSwapPick > static_cast<int>(g_hotSwapFiles.size())) {
-			UI::ColliderDraw::Set("hotswap", {});
-			return;
-		}
-		UI::ColliderDraw::Set("hotswap", ReadHotSwap(g_hotSwapFiles[static_cast<std::size_t>(g_hotSwapPick - 1)], player, weight));
-	}
 }

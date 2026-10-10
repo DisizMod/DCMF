@@ -22,7 +22,6 @@ namespace UI::ColliderDraw
 		float scaleWeight = 1.f;
 		bool bAffected = false;  // a part CBPC pushes, not one that pushes
 		bool bBone = false;      // a bone's place, not a collider
-		bool bReference = false;  // TODO: temporary, a hand-made config's collider shown for comparison
 		std::string endNode;      // a capsule's far end at this node instead, end2 in its space: a line between two bones
 	};
 

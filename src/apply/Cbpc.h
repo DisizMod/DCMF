@@ -18,14 +18,4 @@ namespace Apply::Cbpc
 
 	// Main thread: an actor let go, its colliders taken off
 	void Release(ActorState::State& a_state);
-
-	// TODO: temporary, the player's fitted colliders written beside the log, to compare with a hand-made config
-	void WriteComparison();
-
-	// TODO: temporary, a HotSwap preset's colliders drawn on the player beside the fit: the presets found, which is drawn
-	// (0 none), and the drawing kept in step each frame
-	[[nodiscard]] const std::vector<std::string>& HotSwapPresets();
-	[[nodiscard]] int HotSwapPick();
-	void SetHotSwapPick(int a_pick);
-	void DrawHotSwap();
 }
