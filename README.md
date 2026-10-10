@@ -138,6 +138,35 @@ DLL still loaded the two blink and ease the face at once; the plugin says so in
 its log and in the panel's problems bar, and leaves Mfg Fix's own natives
 standing rather than registering a second set.
 
+## Vertex offsets API
+
+`src/API/DCMF-VertexOffsetAPI.h` lets another SKSE plugin move an actor's skin
+per vertex — dents, wobble — without writing the body's vertex buffer itself,
+so DCMF stays its only writer. Copy the header into your project and call
+`DCMF_API::VertexOffset::GetAPI()` once the game's data is loaded.
+
+- `SetOffsets(actor, shape, owner, vertices, xyz, count)` sets an owner's
+  offsets on one shape, replacing what it set there before. The final position
+  is base + morphs + every owner's offsets, in the shape's skin space. Any
+  thread; the data is copied at once. It returns false, storing nothing, for a
+  shape DCMF does not write (no BODYTRI morphs), so the caller can write the
+  buffer itself instead.
+- `ClearOffsets(actor, owner)` takes the owner's offsets off every shape of the
+  actor.
+- `CopyPositions(actor, shape, out, count)` gives base + morphs as DCMF last
+  wrote them, without offsets.
+- `MorphGeneration(actor)` goes up each time DCMF writes new morphs on the actor
+  or binds its shapes again: the moment to rebuild from `CopyPositions`.
+- Version 2 (`GetAPI2()`) adds `SetRotations(actor, shape, owner, vertices,
+  xyzw, count)`: a unit quaternion per vertex that turns its normal, tangent and
+  bitangent (base + morphs) at upload, so a tangent-space normal map's lighting
+  follows a dent. Owners' rotations compose; `ClearOffsets` takes them off too.
+
+Offsets go on at upload, in the frame they were set for. When only offsets
+change, only the vertices that have them now or had them before are uploaded,
+in merged runs. They never reach the CPU copy SMP builds its collision from.
+They are dropped when the actor is let go or a shape leaves the actor.
+
 ## Layout
 
 ```

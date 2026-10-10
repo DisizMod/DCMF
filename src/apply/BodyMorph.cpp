@@ -1,5 +1,6 @@
 #include "BodyMorph.h"
 
+#include "API/DCMF-VertexOffsetAPI.h"
 #include "ActorState.h"
 #include "Entries.h"
 #include "scan/Scan.h"
@@ -215,9 +216,159 @@ namespace Apply
 		{
 			RE::NiPointer<RE::NiSkinPartition> partition;
 			std::shared_ptr<std::vector<std::uint8_t>> bytes;
+			RE::NiPointer<RE::BSGeometry> geometry;  // whose offsets go on top; none for a write that takes no offsets
 		};
 		std::mutex g_pendingLock;
 		std::vector<Pending> g_pending;
+
+		// ---- vertex offsets: other plugins' per-vertex moves, added on top of the morphs at upload ----
+
+		struct OffsetSet
+		{
+			std::vector<std::uint32_t> vertices;
+			std::vector<float> xyz;
+		};
+
+		// Rotations of the vertices' frames, a unit quaternion each
+		struct TurnSet
+		{
+			std::vector<std::uint32_t> vertices;
+			std::vector<float> xyzw;
+		};
+
+		// The write side: what each owner set on a shape, swapped to the upload under a short lock
+		struct ShapeOffsets
+		{
+			RE::FormID actor = 0;
+			RE::NiPointer<RE::BSGeometry> geometry;
+			RE::NiPointer<RE::NiSkinPartition> partition;
+			std::uint32_t vertexCount = 0;
+			std::uint32_t stride = 0;
+			bool bHalves = true;
+			std::uint32_t normalOffset = 0;   // bytes into a vertex; 0, none
+			std::uint32_t tangentOffset = 0;  // bytes into a vertex; 0, none
+			std::map<std::string, std::shared_ptr<const OffsetSet>, std::less<>> owners;
+			std::map<std::string, std::shared_ptr<const TurnSet>, std::less<>> turners;
+			std::shared_ptr<const std::vector<std::uint8_t>> seed;  // base and morphs as the shape had them at its first offsets
+			bool bDirty = true;
+		};
+		std::mutex g_offsetLock;
+		std::unordered_map<const RE::BSGeometry*, ShapeOffsets> g_offsets;
+		std::vector<RE::NiPointer<RE::BSGeometry>> g_droppedShapes;  // gone: the upload forgets them without a write
+		std::unordered_map<RE::FormID, std::uint32_t> g_morphGenerations;
+		std::atomic<bool> g_bOffsetsChanged = false;
+
+		// The read side, the upload's alone: what the GPU holds of a shape with offsets, and the base and morphs under them
+		struct Offset
+		{
+			std::uint32_t vertex;
+			float x, y, z;
+			float qx = 0.f, qy = 0.f, qz = 0.f, qw = 1.f;
+			bool bTurn = false;
+		};
+		struct Shown
+		{
+			RE::NiPointer<RE::BSGeometry> geometry;
+			RE::NiPointer<RE::NiSkinPartition> partition;
+			std::uint32_t vertexCount = 0;
+			std::uint32_t stride = 0;
+			bool bHalves = true;
+			std::uint32_t normalOffset = 0;
+			std::uint32_t tangentOffset = 0;
+			std::vector<std::uint8_t> morphed;
+			std::vector<std::uint8_t> shown;
+			std::vector<Offset> offsets;            // every owner's summed, by vertex
+			std::vector<std::uint32_t> lastOffset;  // the vertices the GPU has offsets on
+			bool bFull = false;
+			bool bOffsetsChanged = false;
+		};
+		std::unordered_map<const RE::BSGeometry*, Shown> g_shown;
+
+		// The shapes of an actor that are not among those kept lose their offsets
+		void ForgetOffsets(RE::FormID a_actor, const std::vector<BodyMorphShape>& a_kept)
+		{
+			std::scoped_lock lock(g_offsetLock);
+			for (auto it = g_offsets.begin(); it != g_offsets.end();) {
+				const bool bKept = std::ranges::any_of(a_kept, [&](const BodyMorphShape& a_shape) { return a_shape.geometry.get() == it->first; });
+				if (it->second.actor == a_actor && !bKept) {
+					g_droppedShapes.push_back(it->second.geometry);
+					it = g_offsets.erase(it);
+					g_bOffsetsChanged = true;
+				} else {
+					++it;
+				}
+			}
+		}
+
+		bool HasOffsets(RE::FormID a_actor)
+		{
+			std::scoped_lock lock(g_offsetLock);
+			return std::ranges::any_of(g_offsets, [&](const auto& a_entry) { return a_entry.second.actor == a_actor; });
+		}
+
+		void NextMorphGeneration(RE::FormID a_actor)
+		{
+			std::scoped_lock lock(g_offsetLock);
+			++g_morphGenerations[a_actor];
+		}
+
+		// A vertex's frame turned by a rotation, read from the base and morphs and written over them: the normal's bytes
+		// xyz with the bitangent's y as its w, the tangent's xyz with the bitangent's z, the bitangent's x after the position.
+		// A byte maps 0-255 onto -1..1
+		void TurnFrame(std::uint8_t* a_out, const std::uint8_t* a_in, bool a_bHalves, std::uint32_t a_normal, std::uint32_t a_tangent, float qx, float qy, float qz, float qw)
+		{
+			const auto rotate = [&](float& x, float& y, float& z) {
+				const float tx = 2.f * (qy * z - qz * y);
+				const float ty = 2.f * (qz * x - qx * z);
+				const float tz = 2.f * (qx * y - qy * x);
+				const float rx = x + qw * tx + (qy * tz - qz * ty);
+				const float ry = y + qw * ty + (qz * tx - qx * tz);
+				const float rz = z + qw * tz + (qx * ty - qy * tx);
+				x = rx;
+				y = ry;
+				z = rz;
+			};
+			const auto unpack = [](std::uint8_t a_byte) { return a_byte / 255.f * 2.f - 1.f; };
+			const auto pack = [](float a_value) { return static_cast<std::uint8_t>(std::clamp(std::lround((a_value * .5f + .5f) * 255.f), 0l, 255l)); };
+			const std::uint8_t* normalIn = a_in + a_normal;
+			std::uint8_t* normalOut = a_out + a_normal;
+			float nx = unpack(normalIn[0]), ny = unpack(normalIn[1]), nz = unpack(normalIn[2]);
+			rotate(nx, ny, nz);
+			normalOut[0] = pack(nx);
+			normalOut[1] = pack(ny);
+			normalOut[2] = pack(nz);
+			if (!a_tangent) {
+				return;
+			}
+			const std::uint8_t* tangentIn = a_in + a_tangent;
+			std::uint8_t* tangentOut = a_out + a_tangent;
+			float tx = unpack(tangentIn[0]), ty = unpack(tangentIn[1]), tz = unpack(tangentIn[2]);
+			rotate(tx, ty, tz);
+			tangentOut[0] = pack(tx);
+			tangentOut[1] = pack(ty);
+			tangentOut[2] = pack(tz);
+			float bx = 0.f;
+			if (a_bHalves) {
+				std::uint16_t half;
+				std::memcpy(&half, a_in + 6, sizeof(half));
+				bx = HalfToFloat(half);
+			} else {
+				std::memcpy(&bx, a_in + 12, sizeof(bx));
+			}
+			float by = unpack(normalIn[3]), bz = unpack(tangentIn[3]);
+			rotate(bx, by, bz);
+			normalOut[3] = pack(by);
+			tangentOut[3] = pack(bz);
+			if (a_bHalves) {
+				const auto half = FloatToHalf(bx);
+				std::memcpy(a_out + 6, &half, sizeof(half));
+			} else {
+				std::memcpy(a_out + 12, &bx, sizeof(bx));
+			}
+		}
+
+		// Where a shape's vertices keep their normal and tangent, from the partition it draws with; 0 for none
+		std::pair<std::uint32_t, std::uint32_t> FrameOffsets(const BodyMorphShape& a_shape);
 
 		// Every stamped, skinned geometry under the root whose name a TRI knows
 		void Bind(BodyMorphData& a_data, RE::NiAVObject* a_root, RE::FormID a_actor)
@@ -350,6 +501,21 @@ namespace Apply
 			return a_shape.geometry ? a_shape.geometry->GetGeometryRuntimeData().skinInstance.get() : nullptr;
 		}
 
+		std::pair<std::uint32_t, std::uint32_t> FrameOffsets(const BodyMorphShape& a_shape)
+		{
+			auto* partition = Active(a_shape);
+			if (!partition || partition->numPartitions == 0 || !partition->partitions[0].buffData) {
+				return { 0, 0 };
+			}
+			auto desc = partition->partitions[0].buffData->vertexDesc;
+			using A = RE::BSGraphics::Vertex::Attribute;
+			using F = RE::BSGraphics::Vertex::Flags;
+			if (!desc.HasFlag(F::VF_NORMAL)) {
+				return { 0, 0 };
+			}
+			return { desc.GetAttributeOffset(A::VA_NORMAL), desc.HasFlag(F::VF_TANGENT) ? desc.GetAttributeOffset(A::VA_BINORMAL) : 0u };
+		}
+
 		// Sums the held weights into the next working copy and queues it; an empty set puts the base back
 		void WriteShape(BodyMorphShape& a_shape, const std::vector<NumberSample>& a_weights)
 		{
@@ -391,7 +557,7 @@ namespace Apply
 			}
 
 			std::scoped_lock lock(g_pendingLock);
-			g_pending.push_back({ RE::NiPointer(Active(a_shape)), a_shape.work[slot] });
+			g_pending.push_back({ RE::NiPointer(Active(a_shape)), a_shape.work[slot], a_shape.geometry });
 		}
 
 		// The base plus the weighted morphs into the CPU copy SMP builds its collision from, in the shape's own copy of its
@@ -525,8 +691,13 @@ namespace Apply
 			auto* actor = refr ? refr->As<RE::Actor>() : nullptr;
 
 			if (bLetGo) {
-				// The base goes back onto whatever is still drawn; a shape that left with its armor needs nothing
-				if (a_data.bWritten) {
+				// Offsets go with the actor, and the base goes back onto whatever is still drawn; a shape that left with its armor
+				// needs nothing
+				const bool bHadOffsets = refr && HasOffsets(refr->GetFormID());
+				if (refr) {
+					ForgetOffsets(refr->GetFormID(), {});
+				}
+				if (a_data.bWritten || bHadOffsets) {
 					for (auto& shape : a_data.shapes) {
 						if (StillAttached(shape, root)) {
 							WriteShape(shape, {});
@@ -541,6 +712,9 @@ namespace Apply
 					if (!bRetired && root) {
 						ResetSmp(actor);
 					}
+				}
+				if (refr && (a_data.bWritten || bHadOffsets)) {
+					NextMorphGeneration(refr->GetFormID());
 				}
 				a_data = {};
 				return;
@@ -563,6 +737,7 @@ namespace Apply
 				Bind(a_data, root, refr->GetFormID());
 				a_data.boundGeneration = parts->generation;
 				a_data.applied.clear();
+				ForgetOffsets(refr->GetFormID(), a_data.shapes);
 			}
 
 			// SMP's copy: the modifiers' body when the patch is on, the base when it is off
@@ -595,6 +770,7 @@ namespace Apply
 			});
 			a_data.applied = weights;
 			a_data.bWritten = true;
+			NextMorphGeneration(refr->GetFormID());
 		});
 	}
 
@@ -610,13 +786,37 @@ namespace Apply
 			return;
 		}
 
+		// The offsets set since the last upload, and the shapes gone
+		struct Changed
+		{
+			ShapeOffsets offsets;
+			bool bRemoved = false;
+		};
+		std::vector<Changed> changed;
+		std::vector<RE::NiPointer<RE::BSGeometry>> dropped;
+		if (g_bOffsetsChanged.exchange(false)) {
+			std::scoped_lock lock(g_offsetLock);
+			dropped.swap(g_droppedShapes);
+			for (auto it = g_offsets.begin(); it != g_offsets.end();) {
+				if (!it->second.bDirty) {
+					++it;
+					continue;
+				}
+				it->second.bDirty = false;
+				const bool bRemoved = it->second.owners.empty() && it->second.turners.empty();
+				changed.push_back({ it->second, bRemoved });
+				it->second.seed.reset();
+				it = bRemoved ? g_offsets.erase(it) : std::next(it);
+			}
+		}
+
 		std::vector<Pending> pending;
 		{
 			std::scoped_lock lock(g_pendingLock);
-			if (g_pending.empty()) {
-				return;
-			}
 			pending.swap(g_pending);
+		}
+		if (pending.empty() && changed.empty() && dropped.empty()) {
+			return;
 		}
 
 		float uploaded = 0.f;
@@ -627,20 +827,305 @@ namespace Apply
 			~Record() { Timing::RecordPerFrame([&](Timing::PerFrame& a_frame) { a_frame.upload.Add(milliseconds); }); }
 		} record{ uploaded };
 
-		for (const auto& item : pending) {
-			for (std::uint32_t i = 0; i < item.partition->numPartitions; ++i) {
-				auto* data = item.partition->partitions[i].buffData;
+		// Bytes of a copy into each of the partition's buffers, never more than a buffer holds
+		const auto send = [&](RE::NiSkinPartition* a_partition, const std::uint8_t* a_bytes, std::uint32_t a_from, std::uint32_t a_to) {
+			for (std::uint32_t i = 0; i < a_partition->numPartitions; ++i) {
+				auto* data = a_partition->partitions[i].buffData;
 				if (!data || !data->vertexBuffer) {
 					continue;
 				}
-				// Never more than the buffer holds
-				const auto bytes = (std::min)(ByteWidthOf(data->vertexBuffer), static_cast<std::uint32_t>(item.bytes->size()));
-				if (bytes == 0) {
+				const auto to = (std::min)(ByteWidthOf(data->vertexBuffer), a_to);
+				if (to <= a_from) {
 					continue;
 				}
-				REX::W32::D3D11_BOX box{ 0, 0, 0, bytes, 1, 1 };
-				context->UpdateSubresource(data->vertexBuffer, 0, &box, item.bytes->data(), 0, 0);
+				REX::W32::D3D11_BOX box{ a_from, 0, 0, to, 1, 1 };
+				context->UpdateSubresource(data->vertexBuffer, 0, &box, a_bytes + a_from, 0, 0);
 			}
+		};
+
+		for (const auto& geometry : dropped) {
+			g_shown.erase(geometry.get());
+		}
+		for (auto& item : changed) {
+			auto& offsets = item.offsets;
+			auto it = g_shown.find(offsets.geometry.get());
+			if (it == g_shown.end()) {
+				if (item.bRemoved || !offsets.seed) {
+					continue;
+				}
+				Shown shown{ offsets.geometry, offsets.partition, offsets.vertexCount, offsets.stride, offsets.bHalves, offsets.normalOffset, offsets.tangentOffset, *offsets.seed, *offsets.seed };
+				it = g_shown.emplace(offsets.geometry.get(), std::move(shown)).first;
+			}
+			// Every owner's offsets summed by vertex
+			auto& summed = it->second.offsets;
+			summed.clear();
+			for (const auto& [owner, set] : offsets.owners) {
+				for (std::size_t i = 0; i < set->vertices.size(); ++i) {
+					summed.push_back({ set->vertices[i], set->xyz[i * 3], set->xyz[i * 3 + 1], set->xyz[i * 3 + 2] });
+				}
+			}
+			std::ranges::sort(summed, {}, &Offset::vertex);
+			std::size_t kept = 0;
+			for (std::size_t i = 0; i < summed.size(); ++i) {
+				if (kept > 0 && summed[kept - 1].vertex == summed[i].vertex) {
+					summed[kept - 1].x += summed[i].x;
+					summed[kept - 1].y += summed[i].y;
+					summed[kept - 1].z += summed[i].z;
+				} else {
+					summed[kept++] = summed[i];
+				}
+			}
+			summed.resize(kept);
+			// Every owner's rotations composed by vertex, a turned vertex with no offset given a zero one
+			for (const auto& [owner, set] : offsets.turners) {
+				for (std::size_t i = 0; i < set->vertices.size(); ++i) {
+					auto at = std::ranges::lower_bound(summed, set->vertices[i], {}, &Offset::vertex);
+					if (at == summed.end() || at->vertex != set->vertices[i]) {
+						at = summed.insert(at, Offset{ set->vertices[i], 0.f, 0.f, 0.f });
+					}
+					const float* q = set->xyzw.data() + i * 4;
+					const float x = q[3] * at->qx + q[0] * at->qw + q[1] * at->qz - q[2] * at->qy;
+					const float y = q[3] * at->qy - q[0] * at->qz + q[1] * at->qw + q[2] * at->qx;
+					const float z = q[3] * at->qz + q[0] * at->qy - q[1] * at->qx + q[2] * at->qw;
+					const float w = q[3] * at->qw - q[0] * at->qx - q[1] * at->qy - q[2] * at->qz;
+					at->qx = x;
+					at->qy = y;
+					at->qz = z;
+					at->qw = w;
+					at->bTurn = true;
+				}
+			}
+			it->second.bOffsetsChanged = true;
+		}
+
+		for (const auto& item : pending) {
+			// A shape with offsets takes the new morphs into its mirror and goes up whole below
+			if (item.geometry) {
+				if (const auto it = g_shown.find(item.geometry.get()); it != g_shown.end()) {
+					it->second.morphed.assign(item.bytes->begin(), item.bytes->end());
+					it->second.partition = item.partition;
+					it->second.bFull = true;
+					continue;
+				}
+			}
+			send(item.partition.get(), item.bytes->data(), 0, static_cast<std::uint32_t>(item.bytes->size()));
+		}
+
+		for (auto it = g_shown.begin(); it != g_shown.end();) {
+			auto& shown = it->second;
+			if (!shown.bFull && !shown.bOffsetsChanged) {
+				++it;
+				continue;
+			}
+			const auto stride = shown.stride;
+			// The position with the bitangent's x after it, and the normal and tangent with the bitangent's y and z
+			const auto positionBytes = shown.bHalves ? 8u : 16u;
+			const auto frameBytes = shown.tangentOffset ? 8u : 4u;
+			const auto put = [&](std::uint32_t a_vertex, const Offset* a_offset) {
+				const auto at = static_cast<std::size_t>(a_vertex) * stride;
+				auto* out = shown.shown.data() + at;
+				const auto* in = shown.morphed.data() + at;
+				// Back to base and morphs first, so neither offsets nor rotations build up
+				std::memcpy(out, in, positionBytes);
+				if (shown.normalOffset) {
+					std::memcpy(out + shown.normalOffset, in + shown.normalOffset, frameBytes);
+				}
+				if (!a_offset) {
+					return;
+				}
+				float x, y, z;
+				ReadPosition(in, shown.bHalves, x, y, z);
+				WritePosition(out, shown.bHalves, x + a_offset->x, y + a_offset->y, z + a_offset->z);
+				if (a_offset->bTurn && shown.normalOffset) {
+					TurnFrame(out, in, shown.bHalves, shown.normalOffset, shown.tangentOffset, a_offset->qx, a_offset->qy, a_offset->qz, a_offset->qw);
+				}
+			};
+
+			std::vector<std::uint32_t> current;
+			current.reserve(shown.offsets.size());
+			for (const auto& offset : shown.offsets) {
+				if (offset.vertex < shown.vertexCount) {
+					current.push_back(offset.vertex);
+				}
+			}
+
+			if (shown.bFull) {
+				shown.shown = shown.morphed;
+				for (const auto& offset : shown.offsets) {
+					if (offset.vertex < shown.vertexCount) {
+						put(offset.vertex, &offset);
+					}
+				}
+				send(shown.partition.get(), shown.shown.data(), 0, static_cast<std::uint32_t>(shown.shown.size()));
+			} else {
+				// Only the vertices with offsets now or before: those that lost theirs back to base and morphs
+				std::vector<std::uint32_t> touched;
+				std::ranges::set_union(shown.lastOffset, current, std::back_inserter(touched));
+				auto offset = shown.offsets.begin();
+				for (const auto vertex : touched) {
+					while (offset != shown.offsets.end() && offset->vertex < vertex) {
+						++offset;
+					}
+					put(vertex, offset != shown.offsets.end() && offset->vertex == vertex ? &*offset : nullptr);
+				}
+				// Runs of touched vertices, small gaps bridged, each sent as one range
+				constexpr std::uint32_t kGap = 16;
+				for (std::size_t i = 0; i < touched.size();) {
+					auto last = touched[i];
+					std::size_t j = i + 1;
+					while (j < touched.size() && touched[j] - last <= kGap) {
+						last = touched[j++];
+					}
+					send(shown.partition.get(), shown.shown.data(), touched[i] * stride, (last + 1) * stride);
+					i = j;
+				}
+			}
+			shown.lastOffset = std::move(current);
+			shown.bFull = false;
+			shown.bOffsetsChanged = false;
+			// No offsets left: the shape is back on the plain path
+			it = shown.offsets.empty() ? g_shown.erase(it) : std::next(it);
 		}
 	}
+}
+
+namespace
+{
+	class VertexOffsetInterface : public DCMF_API::VertexOffset::IVertexOffsetInterface2
+	{
+	public:
+		static VertexOffsetInterface* GetSingleton() noexcept
+		{
+			static VertexOffsetInterface singleton;
+			return std::addressof(singleton);
+		}
+
+		bool SetOffsets(RE::Actor* a_actor, RE::BSGeometry* a_shape, const char* a_owner, const std::uint32_t* a_vertices, const float* a_xyz, std::uint32_t a_count) noexcept override
+		{
+			return Store<Apply::OffsetSet, 3>(a_actor, a_shape, a_owner, a_vertices, a_xyz, a_count, &Apply::ShapeOffsets::owners, &Apply::OffsetSet::xyz);
+		}
+
+		bool SetRotations(RE::Actor* a_actor, RE::BSGeometry* a_shape, const char* a_owner, const std::uint32_t* a_vertices, const float* a_xyzw, std::uint32_t a_count) noexcept override
+		{
+			return Store<Apply::TurnSet, 4>(a_actor, a_shape, a_owner, a_vertices, a_xyzw, a_count, &Apply::ShapeOffsets::turners, &Apply::TurnSet::xyzw);
+		}
+
+		void ClearOffsets(RE::Actor* a_actor, const char* a_owner) noexcept override
+		{
+			if (!a_actor || !a_owner) {
+				return;
+			}
+			std::scoped_lock lock(Apply::g_offsetLock);
+			for (auto& [geometry, offsets] : Apply::g_offsets) {
+				if (offsets.actor == a_actor->GetFormID() && (offsets.owners.erase(std::string(a_owner)) + offsets.turners.erase(std::string(a_owner))) > 0) {
+					offsets.bDirty = true;
+					Apply::g_bOffsetsChanged = true;
+				}
+			}
+		}
+
+		bool CopyPositions(RE::Actor* a_actor, RE::BSGeometry* a_shape, float* a_outXyz, std::uint32_t a_count) noexcept override
+		{
+			if (!a_actor || !a_shape || (a_count > 0 && !a_outXyz)) {
+				return false;
+			}
+			const auto state = ActorState::Get(a_actor->GetHandle());
+			if (!state) {
+				return false;
+			}
+			return state->bodyMorph.With([&](const Apply::BodyMorphData& a_data) {
+				const auto shape = std::ranges::find_if(a_data.shapes, [&](const Apply::BodyMorphShape& a_bound) { return a_bound.geometry.get() == a_shape; });
+				if (shape == a_data.shapes.end()) {
+					return false;
+				}
+				const auto& bytes = *shape->work[shape->next ^ 1];
+				const auto count = (std::min)(a_count, shape->vertexCount);
+				for (std::uint32_t v = 0; v < count; ++v) {
+					Apply::ReadPosition(bytes.data() + static_cast<std::size_t>(v) * shape->stride, shape->bHalves, a_outXyz[v * 3], a_outXyz[v * 3 + 1], a_outXyz[v * 3 + 2]);
+				}
+				return true;
+			});
+		}
+
+	private:
+		// An owner's set for a shape DCMF writes, an entry made for the shape at its first: its layout and what the GPU
+		// holds now. False, storing nothing, for a shape DCMF does not write
+		template <class Set, std::size_t N>
+		static bool Store(RE::Actor* a_actor, RE::BSGeometry* a_shape, const char* a_owner, const std::uint32_t* a_vertices, const float* a_values, std::uint32_t a_count,
+			std::map<std::string, std::shared_ptr<const Set>, std::less<>> Apply::ShapeOffsets::*a_owners, std::vector<float> Set::*a_floats)
+		{
+			if (!a_actor || !a_shape || !a_owner || (a_count > 0 && (!a_vertices || !a_values))) {
+				return false;
+			}
+			const auto state = ActorState::Get(a_actor->GetHandle());
+			if (!state) {
+				return false;
+			}
+			auto set = std::make_shared<Set>();
+			return state->bodyMorph.With([&](Apply::BodyMorphData& a_data) {
+				const auto shape = std::ranges::find_if(a_data.shapes, [&](const Apply::BodyMorphShape& a_bound) { return a_bound.geometry.get() == a_shape; });
+				if (shape == a_data.shapes.end()) {
+					return false;
+				}
+				set->vertices.reserve(a_count);
+				auto& floats = (*set).*a_floats;
+				floats.reserve(static_cast<std::size_t>(a_count) * N);
+				for (std::uint32_t i = 0; i < a_count; ++i) {
+					if (a_vertices[i] < shape->vertexCount) {
+						set->vertices.push_back(a_vertices[i]);
+						floats.insert(floats.end(), a_values + static_cast<std::size_t>(i) * N, a_values + static_cast<std::size_t>(i) * N + N);
+					}
+				}
+				std::scoped_lock lock(Apply::g_offsetLock);
+				auto [entry, bNew] = Apply::g_offsets.try_emplace(a_shape);
+				auto& offsets = entry->second;
+				if (bNew) {
+					offsets.actor = a_actor->GetFormID();
+					offsets.geometry = shape->geometry;
+					offsets.partition = RE::NiPointer(Apply::Active(*shape));
+					offsets.vertexCount = shape->vertexCount;
+					offsets.stride = shape->stride;
+					offsets.bHalves = shape->bHalves;
+					std::tie(offsets.normalOffset, offsets.tangentOffset) = Apply::FrameOffsets(*shape);
+					// What the GPU holds now: the copy last summed
+					offsets.seed = std::make_shared<const std::vector<std::uint8_t>>(*shape->work[shape->next ^ 1]);
+				}
+				auto& owners = offsets.*a_owners;
+				if (set->vertices.empty()) {
+					owners.erase(std::string(a_owner));
+				} else {
+					owners.insert_or_assign(std::string(a_owner), std::move(set));
+				}
+				offsets.bDirty = true;
+				Apply::g_bOffsetsChanged = true;
+				return true;
+			});
+		}
+
+	public:
+		std::uint32_t MorphGeneration(RE::Actor* a_actor) noexcept override
+		{
+			if (!a_actor) {
+				return 0;
+			}
+			std::scoped_lock lock(Apply::g_offsetLock);
+			const auto it = Apply::g_morphGenerations.find(a_actor->GetFormID());
+			return it != Apply::g_morphGenerations.end() ? it->second : 0;
+		}
+	};
+}
+
+extern "C" __declspec(dllexport) DCMF_API::VertexOffset::IVertexOffsetInterface* RequestPluginAPI_VertexOffset(const DCMF_API::VertexOffset::InterfaceVersion a_interfaceVersion, const char* a_pluginName, REL::Version a_pluginVersion)
+{
+	if (!a_pluginName) {
+		logger::warn("vertexoffset: RequestPluginAPI_VertexOffset called with no plugin name");
+		return nullptr;
+	}
+	logger::info("vertexoffset: RequestPluginAPI_VertexOffset called by {} {}, interface version {}", a_pluginName, a_pluginVersion, static_cast<std::uint8_t>(a_interfaceVersion) + 1);
+	// Version 2 extends version 1's table, so one object answers both
+	if (a_interfaceVersion == DCMF_API::VertexOffset::InterfaceVersion::V1 || a_interfaceVersion == DCMF_API::VertexOffset::InterfaceVersion::V2) {
+		return VertexOffsetInterface::GetSingleton();
+	}
+	logger::warn("vertexoffset: RequestPluginAPI_VertexOffset asked for an interface version this build does not have");
+	return nullptr;
 }
