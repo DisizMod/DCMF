@@ -1011,8 +1011,8 @@ namespace Apply::Cbpc
 	{
 		std::error_code error;
 		const bool bInstalled = std::filesystem::exists("Data/SKSE/Plugins/cbp.dll", error);
-		// At load the load order's default is not yet applied: on with CBPC, unless the user chose
-		const bool bOn = Settings::bPatchCbpcChosen ? Settings::bPatchCbpc : bInstalled;
+		// Off unless the user turned it on
+		const bool bOn = Settings::bPatchCbpcChosen && Settings::bPatchCbpc;
 		if (bOn && bInstalled) {
 			const auto text = ConfigText();
 			std::string current;

@@ -261,10 +261,10 @@ void Settings::ApplyLoadOrderDefaults()
 	}
 	logger::info("patches: Menu Studio {}, its inventory patch {}{}", bMenuStudioInstalled ? "found" : "not found", bPatchMenuStudio ? "on" : "off", bPatchMenuStudioChosen ? " by the user's choice" : "");
 
-	// CBPC's fitted colliders: on when CBPC is loaded, unless the user chose
+	// CBPC's fitted colliders: off until the user turns them on
 	bCbpcInstalled = GetModuleHandleW(L"cbp.dll") != nullptr;
 	if (!bPatchCbpcChosen) {
-		bPatchCbpc = bCbpcInstalled;
+		bPatchCbpc = false;
 	}
 	logger::info("patches: CBPC {}, its fitted collider patch {}{}", bCbpcInstalled ? "found" : "not found", bPatchCbpc ? "on" : "off", bPatchCbpcChosen ? " by the user's choice" : "");
 }

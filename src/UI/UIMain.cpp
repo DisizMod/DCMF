@@ -5694,7 +5694,7 @@ namespace UI
 
 
 		drawPatch("cbpc", "CBPC: colliders fitted to the body", Settings::bPatchCbpc, Settings::bPatchCbpcChosen, Settings::bCbpcInstalled, "cbp.dll found", "cbp.dll not found",
-			"CBPC places its colliders from a config tuned by hand for one body, so on any other preset they float off the skin or sink into it. With this on, DCMF fits a sphere or a capsule on each of the breasts, the butt, the belly, the head, the arms, the hands, the legs and the feet to each driven female's own mesh, as the modifiers shape it once none is mid-transition, and gives them to CBPC; again when CBPC drops them, as on a cell change. While this is on, DCMF writes its own collision config, holding no collider of its own, for the females it fits, which DCMF.esp's faction marks; every other actor keeps CBPC's own. DCMF.esp must be active. On by itself when CBPC is loaded, until you toggle it.",
+			"CBPC places its colliders from a config tuned by hand for one body, so on any other preset they float off the skin or sink into it. With this on, DCMF fits a sphere or a capsule on each of the breasts, the butt, the belly, the head, the arms, the hands, the legs and the feet to each driven female's own mesh, as the modifiers shape it once none is mid-transition, and gives them to CBPC; again when CBPC drops them, as on a cell change. While this is on, DCMF writes its own collision config, holding no collider of its own, for the females it fits, which DCMF.esp's faction marks; every other actor keeps CBPC's own. DCMF.esp must be active. Off until you turn it on.",
 			[&]() {
 				ImGui::Separator();
 				ImGui::SetNextItemWidth(UICommon::FirstColumnWidth(_firstColumnWidthPercent));
@@ -5723,6 +5723,8 @@ namespace UI
 				ImGui::Separator();
 			},
 			[]() {
+				// Never on by itself, so not on by a reset either
+				Settings::bPatchCbpc = false;
 				Settings::fPatchCbpcSkinOffset = 0.f;
 				Settings::fPatchCbpcBreastOffset = 0.f;
 				Settings::bDrawCBPCColliders = false;
