@@ -12,7 +12,7 @@ struct Settings
 
 	// General
 	static inline uint32_t uParsingWorkerCount = 4;
-	static inline uint32_t uTargetMode = 1;  // Scheduler::TargetMode
+	static inline uint32_t uTargetMode = 2;  // Scheduler::TargetMode
 	static inline float fTargetDistance = 0.f;
 	static inline float fTickRate = 4.f;
 	static inline float fMinEvaluationGap = 100.f;  // ms an actor waits after an evaluation before a change is answered again
