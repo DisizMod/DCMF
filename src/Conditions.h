@@ -246,6 +246,10 @@ namespace Conditions
 		static RE::TESForm* GetEquippedPower(RE::TESObjectREFR* a_refr);
 	};
 
+	// The worn pickers' group on top: what the reference the editor inspects wears now
+	void SetWornFormPicker(FormConditionComponent* a_component);
+	void SetWornNamePicker(TextConditionComponent* a_component);
+
 	class IsWornCondition : public ConditionBase
 	{
 	public:
@@ -253,6 +257,7 @@ namespace Conditions
 		{
 			formComponent = AddComponent<FormConditionComponent>("Form", "The form that should be worn.");
 			formComponent->form.SetFormTypeFilter({ RE::FormType::Armor, RE::FormType::Weapon, RE::FormType::Ammo, RE::FormType::Light });
+			SetWornFormPicker(formComponent);
 		}
 
 		void InitializeLegacy(const char* a_argument) override { formComponent->form.ParseLegacy(a_argument); }
@@ -350,8 +355,9 @@ namespace Conditions
 	public:
 		IsWornNamedCondition()
 		{
-			textComponent = AddComponent<TextConditionComponent>("Name", "The item's name, as the inventory shows it or as its form has it; whatever the case.");
+			textComponent = AddComponent<TextConditionComponent>("Name", "The item's name, as the inventory shows it or as its form has it; whatever the case. Pick lists what the reference wears.");
 			textComponent->SetAllowSpaces(true);
+			SetWornNamePicker(textComponent);
 		}
 
 		[[nodiscard]] RE::BSString GetArgument() const override { return textComponent->GetArgument(); }

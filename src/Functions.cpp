@@ -326,7 +326,7 @@ namespace Functions
 			};
 			return UI::UICommon::AsyncPicker("Topic", [plugins] {
 				// The reference actor's last topics on top
-				std::vector<UI::UICommon::AsyncPickerGroup> groups{ { "Recently played", Triggers::kRecentGroup, {} } };
+				std::vector<UI::UICommon::AsyncPickerGroup> groups{ { "Recently played", Triggers::kRecentGroup, {}, UI::UIManager::GetSingleton().GetRefrToEvaluate() ? "" : "(no reference selected)" } };
 				for (auto& plugin : plugins()) {
 					groups.push_back({ std::move(plugin), groups.size() - 1, {} });
 				}

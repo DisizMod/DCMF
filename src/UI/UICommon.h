@@ -128,6 +128,7 @@ namespace UI
 			std::uint64_t value = 0;
 			std::string warning;  // drawn in the error colour, this on hover, when set
 			std::string greyed;   // drawn greyed, still pickable, this on hover, when set: not for the selected actor
+			bool bNote = false;   // drawn disabled, not pickable: why its group holds nothing
 		};
 
 		// The width a [Pick] button takes: the two step buttons of an InputInt
@@ -146,6 +147,7 @@ namespace UI
 			std::string label;
 			std::uint64_t key = 0;
 			std::string section;  // a node the group sits in, a plugin; groups of one section listed together, none for a flat list
+			std::string empty;    // said when it holds nothing, "(nothing)" when unset
 		};
 
 		// The Pick button and a popup of groups whose items are fetched on the main thread the first time a group is

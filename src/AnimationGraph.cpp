@@ -562,8 +562,14 @@ namespace AnimationGraph
 			}
 			SortByGroup(out);
 			std::vector<UI::UICommon::PickerItem> recent;
+			if (!UI::UIManager::GetSingleton().GetRefrToEvaluate()) {
+				recent.push_back({ "(no reference selected)", "Recently played", 0, {}, {}, true });
+			}
 			for (auto& file : RecentOn(UI::UIManager::GetSingleton().GetRefrToEvaluate())) {
 				recent.push_back({ std::move(file), "Recently played" });
+			}
+			if (recent.empty()) {
+				recent.push_back({ "(nothing)", "Recently played", 0, {}, {}, true });
 			}
 			out.insert(out.begin(), std::make_move_iterator(recent.begin()), std::make_move_iterator(recent.end()));
 			// Each item's value its place again, the recent ones counted

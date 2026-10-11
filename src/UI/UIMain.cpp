@@ -1557,16 +1557,17 @@ namespace UI
 				}
 			};
 
-			// Each list ends with its own add button in author mode, which names the new one in a popup
+			// Each list ends with its own add button in user and author mode, which names the new one in a popup; a user's is kept
+			// in their own file as one they added
 			ImGui::TextUnformatted("Modifiers:");
 			drawSubModsOfKind(SubModKind::kModifier);
-			if (_editMode == EditMode::kAuthor && ImGui::Button("Add modifier")) {
+			if (_editMode > EditMode::kNone && ImGui::Button("Add modifier")) {
 				_newEntryState = { NewEntryState::Kind::kModifier, a_registeredMod, {}, true };
 			}
 
 			ImGui::TextUnformatted("Clips:");
 			drawSubModsOfKind(SubModKind::kClip);
-			if (_editMode == EditMode::kAuthor && ImGui::Button("Add clip")) {
+			if (_editMode > EditMode::kNone && ImGui::Button("Add clip")) {
 				_newEntryState = { NewEntryState::Kind::kClip, a_registeredMod, {}, true };
 			}
 

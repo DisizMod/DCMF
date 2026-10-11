@@ -256,7 +256,7 @@ namespace Triggers
 		std::vector<UI::UICommon::AsyncPickerGroup> LineGroups()
 		{
 			auto groups = TopicGroups();
-			groups.insert(groups.begin(), UI::UICommon::AsyncPickerGroup{ "Recently played", kRecentGroup, {} });
+			groups.insert(groups.begin(), UI::UICommon::AsyncPickerGroup{ "Recently played", kRecentGroup, {}, UI::UIManager::GetSingleton().GetRefrToEvaluate() ? "" : "(no reference selected)" });
 			return groups;
 		}
 	}

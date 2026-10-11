@@ -2445,11 +2445,46 @@ namespace Conditions
 
 	namespace
 	{
-		// A plugin's file name, picked from the loaded plugins in load order, the light ones after
-		void SetPluginPicker(TextConditionComponent* a_component)
+		constexpr auto kWornGroup = "Worn by the reference";
+
+		// What the reference the editor inspects wears now, with its name as the inventory shows it
+		std::vector<std::pair<RE::TESBoundObject*, std::string>> WornByReference()
 		{
-			a_component->text.SetPickerItems([] {
+			std::vector<std::pair<RE::TESBoundObject*, std::string>> out;
+			auto* refr = UI::UIManager::GetSingleton().GetRefrToEvaluate();
+			auto* actor = refr ? refr->As<RE::Actor>() : nullptr;
+			if (!actor) {
+				return out;
+			}
+			for (const auto& [object, data] : actor->GetInventory()) {
+				if (object && data.first > 0 && data.second && data.second->IsWorn()) {
+					const char* shown = data.second->GetDisplayName();
+					out.emplace_back(object, shown ? shown : "");
+				}
+			}
+			return out;
+		}
+
+		// A plugin's file name, picked from the loaded plugins in load order, the light ones after; with the worn group, the
+		// plugins of what the reference wears on top
+		void SetPluginPicker(TextConditionComponent* a_component, bool a_bWorn = false)
+		{
+			a_component->text.SetPickerItems([a_bWorn] {
 			std::vector<UI::UICommon::PickerItem> out;
+			if (a_bWorn && !UI::UIManager::GetSingleton().GetRefrToEvaluate()) {
+				out.push_back({ "(no reference selected)", kWornGroup, 0, {}, {}, true });
+			} else if (a_bWorn) {
+				for (const auto& [object, shown] : WornByReference()) {
+					const auto* file = object->GetFile(0);
+					const std::string name = file ? std::string(file->GetFilename()) : std::string{};
+					if (!name.empty() && std::ranges::none_of(out, [&](const auto& a_item) { return a_item.label == name; })) {
+						out.push_back({ name, kWornGroup, static_cast<std::uint64_t>(out.size()) });
+					}
+				}
+				if (out.empty()) {
+					out.push_back({ "(nothing)", kWornGroup, 0, {}, {}, true });
+				}
+			}
 			if (auto* dataHandler = RE::TESDataHandler::GetSingleton()) {
 				const auto add = [&](const RE::TESFile* const* a_files, std::size_t a_count, const char* a_group) {
 					for (std::size_t i = 0; i < a_count; ++i) {
@@ -2481,9 +2516,61 @@ namespace Conditions
 
 	IsWornFromPluginCondition::IsWornFromPluginCondition()
 	{
-		textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the loaded plugins.");
+		textComponent = AddComponent<TextConditionComponent>("Plugin", "The plugin's file name, with its extension; whatever the case. Pick lists the plugins of what the reference wears, then every loaded plugin.");
 		textComponent->SetAllowSpaces(true);
-		SetPluginPicker(textComponent);
+		SetPluginPicker(textComponent, true);
+	}
+
+	void SetWornFormPicker(FormConditionComponent* a_component)
+	{
+		// The plugins' groups as any form picker has them, what the reference wears on top
+		a_component->form.pickOverride = [](RE::FormID a_current, std::uint64_t& a_picked) {
+			static const std::vector<RE::FormType> types{ RE::FormType::Armor, RE::FormType::Weapon, RE::FormType::Ammo, RE::FormType::Light };
+			constexpr std::uint64_t kWorn = UINT64_MAX;
+			return UI::UICommon::AsyncPicker("WornForm", [] {
+				auto groups = Components::FormPickerGroups(types, nullptr);
+				groups.insert(groups.begin(), UI::UICommon::AsyncPickerGroup{ kWornGroup, kWorn, {}, UI::UIManager::GetSingleton().GetRefrToEvaluate() ? "" : "(no reference selected)" });
+				return groups;
+			}, [](std::uint64_t a_group) {
+				if (a_group != kWorn) {
+					return Components::FormPickerGroupItems(types, nullptr, a_group);
+				}
+				std::vector<UI::UICommon::PickerItem> items;
+				for (const auto& [object, shown] : WornByReference()) {
+					const auto* file = object->GetFile(0);
+					const auto formID = object->GetFormID();
+					const auto localID = !file ? formID : file->IsLight() ? (formID & 0xFFF) : (formID & 0xFFFFFF);
+					items.push_back({ std::format("{} ({:X})", shown.empty() ? object->GetName() : shown.c_str(), localID), {}, formID });
+				}
+				return items;
+			}, a_current, a_picked);
+		};
+	}
+
+	void SetWornNamePicker(TextConditionComponent* a_component)
+	{
+		// The names of what the reference wears, as its inventory shows them and as their forms have them; any name typed stands
+		a_component->text.SetPickerItems([] {
+			std::vector<UI::UICommon::PickerItem> out;
+			if (!UI::UIManager::GetSingleton().GetRefrToEvaluate()) {
+				out.push_back({ "(no reference selected)", kWornGroup, 0, {}, {}, true });
+				return out;
+			}
+			const auto add = [&](const char* a_name) {
+				if (a_name && *a_name && std::ranges::none_of(out, [&](const auto& a_item) { return a_item.label == a_name; })) {
+					out.push_back({ std::string(a_name), kWornGroup, static_cast<std::uint64_t>(out.size()) });
+				}
+			};
+			for (const auto& [object, shown] : WornByReference()) {
+				add(shown.c_str());
+				add(object->GetName());
+			}
+			if (out.empty()) {
+				out.push_back({ "(nothing)", kWornGroup, 0, {}, {}, true });
+			}
+			return out;
+		},
+			[](std::string_view a_name) { return std::string(a_name); });
 	}
 
 	HasBoneCondition::HasBoneCondition()

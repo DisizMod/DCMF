@@ -256,6 +256,11 @@ namespace UI::UICommon
 						continue;
 					}
 
+					if (item.bNote) {
+						TextUnformattedDisabled(item.label.data());
+						continue;
+					}
+
 					ImGui::PushID(static_cast<int>(item.value));
 					if (!item.warning.empty()) {
 						ImGui::PushStyleColor(ImGuiCol_Text, ERROR_TEXT_COLOR);
@@ -363,7 +368,7 @@ namespace UI::UICommon
 						if (!items) {
 							TextUnformattedDisabled("Loading...");
 						} else if (items->empty()) {
-							TextUnformattedDisabled("(nothing)");
+							TextUnformattedDisabled(group.empty.empty() ? "(nothing)" : group.empty.data());
 						} else {
 							auto& search = searches[group.key];
 							ImGui::SetNextItemWidth(-FLT_MIN);
