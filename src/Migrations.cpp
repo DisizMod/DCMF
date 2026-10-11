@@ -205,6 +205,8 @@ namespace Migrations
 		if (!a_doc.IsObject()) {
 			return;
 		}
+		// A field no version reads any more, dropped from whatever file has it: a condition's or a function's essential
+		Walk(a_doc, [](rapidjson::Value& a_object) { a_object.RemoveMember("essential"); });
 		for (const auto& step : kSteps) {
 			if (step.to > a_from) {
 				if (const auto changed = step.apply(a_doc, a_mod)) {

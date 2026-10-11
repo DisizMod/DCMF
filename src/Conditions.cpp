@@ -140,42 +140,24 @@ namespace Conditions
 				requiredVersion = REL::Version(requiredVersionIt->value.GetString());
 			}
 
-			EssentialState essentialState = EssentialState::kEssential;
-			if (const auto essentialIt = object.FindMember("essential"); essentialIt != object.MemberEnd() && essentialIt->value.IsInt()) {
-				essentialState = static_cast<EssentialState>(essentialIt->value.GetInt());
-			}
-			bool bEssential = essentialState == EssentialState::kEssential;
-
 			std::string conditionName = conditionNameIt->value.GetString();
 
 			if (bHasRequiredPlugin && !requiredPluginName.empty()) {
 				// check if required plugin is loaded and is the required version or higher
 				if (!ModRegistry::GetSingleton().IsPluginLoaded(requiredPluginName, requiredVersion)) {
 					auto errorStr = std::format("Missing required plugin {} version {}!", requiredPluginName, requiredVersion.string("."));
-					if (bEssential) {
-						DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
-						logger::error("{}", errorStr);
-						return std::make_unique<InvalidCondition>(errorStr);
-					} else {
-						auto condition = std::make_unique<InvalidNonEssentialCondition>(errorStr, conditionName, a_value);
-						condition->Initialize(&a_value);
-						return std::move(condition);
-					}
+					DetectedProblems::GetSingleton().AddMissingPluginName(requiredPluginName, requiredVersion);
+					logger::error("{}", errorStr);
+					return std::make_unique<InvalidCondition>(errorStr, a_value);
 				}
 			} else {
 				// no required plugin: the required version against the version of the conditions this build carries
 				constexpr REL::Version kConditionsVersion{ 3, 2, 1 };
 				if (requiredVersion > kConditionsVersion) {
 					auto errorStr = std::format("Condition {} requires a newer version of DCMF! ({})", conditionName, requiredVersion.string("."));
-					if (bEssential) {
-						DetectedProblems::GetSingleton().MarkOutdatedVersion();
-						logger::error("{}", errorStr);
-						return std::make_unique<InvalidCondition>(errorStr);
-					} else {
-						auto condition = std::make_unique<InvalidNonEssentialCondition>(errorStr, conditionName, a_value);
-						condition->Initialize(&a_value);
-						return std::move(condition);
-					}
+					DetectedProblems::GetSingleton().MarkOutdatedVersion();
+					logger::error("{}", errorStr);
+					return std::make_unique<InvalidCondition>(errorStr, a_value);
 				}
 			}
 
@@ -195,26 +177,14 @@ namespace Conditions
 			// at this point we failed to create a new condition even though the plugin is present and not outdated. This means that the plugin failed to initialize factories for whatever reason.
 			if (bHasRequiredPlugin) {
 				auto errorStr = std::format("Condition {} not found in plugin {}!", conditionName, requiredPluginName);
-				if (bEssential) {
-					DetectedProblems::GetSingleton().AddInvalidPluginName(requiredPluginName, requiredVersion);
-					logger::error("{}", errorStr);
-					return std::make_unique<InvalidCondition>(errorStr);
-				} else {
-					auto condition = std::make_unique<InvalidNonEssentialCondition>(errorStr, conditionName, a_value);
-					condition->Initialize(&a_value);
-					return std::move(condition);
-				}
+				DetectedProblems::GetSingleton().AddInvalidPluginName(requiredPluginName, requiredVersion);
+				logger::error("{}", errorStr);
+				return std::make_unique<InvalidCondition>(errorStr, a_value);
 			}
 
 			auto errorStr = std::format("Condition {} not found!", conditionName);
-			if (bEssential) {
-				logger::error("{}", errorStr);
-				return std::make_unique<InvalidCondition>(errorStr);
-			} else {
-				auto condition = std::make_unique<InvalidNonEssentialCondition>(errorStr, conditionName, a_value);
-				condition->Initialize(&a_value);
-				return std::move(condition);
-			}
+			logger::error("{}", errorStr);
+			return std::make_unique<InvalidCondition>(errorStr, a_value);
 		}
 
 		auto errorStr = "Condition name not found!";
@@ -774,30 +744,15 @@ namespace Conditions
 		return std::move(a_deprecatedCondition);
 	}
 
-	void InvalidNonEssentialCondition::Serialize(void* a_value, void* a_allocator)
+	void InvalidCondition::Serialize(void* a_value, void* a_allocator)
 	{
-		auto& value = *static_cast<rapidjson::Value*>(a_value);
-		auto& allocator = *static_cast<rapidjson::Document::AllocatorType*>(a_allocator);
-
-		// just serialize back the json that was read
-		value.CopyFrom(_json, allocator);
-	}
-
-	RE::BSString InvalidNonEssentialCondition::GetName() const
-	{
-		std::string ret = "[Missing] " + _name;
-		return ret.data();
-	}
-
-	RE::BSString InvalidNonEssentialCondition::GetDescription() const
-	{
-		switch (GetEssential()) {
-		case EssentialState::kNonEssential_True:
-			return "The condition was not found, however it was marked as non-essential by the replacer mod author. It will be treated as if it evaluated to true."sv.data();
-		case EssentialState::kNonEssential_False:
-			return "The condition was not found, however it was marked as non-essential by the replacer mod author. It will be treated as if it evaluated to false."sv.data();
+		// The row as it was read, so a save loses nothing a missing plugin or an older DCMF could not read
+		if (_json.IsObject()) {
+			auto& value = *static_cast<rapidjson::Value*>(a_value);
+			value.CopyFrom(_json, *static_cast<rapidjson::Document::AllocatorType*>(a_allocator));
+			return;
 		}
-		return "The condition was not found!"sv.data();
+		ConditionBase::Serialize(a_value, a_allocator);
 	}
 
 
@@ -3394,7 +3349,6 @@ namespace Conditions
 
 	// What the other rows are made of
 	Program::Expr InvalidCondition::Compile(Program::Builder& a_builder) const { return a_builder.False(); }
-	Program::Expr InvalidNonEssentialCondition::Compile(Program::Builder& a_builder) const { return a_builder.Constant(GetEssential() == EssentialState::kNonEssential_True ? 1.f : 0.f); }
 	Program::Expr DeprecatedCondition::Compile(Program::Builder& a_builder) const { return a_builder.False(); }
 	Program::Expr ORCondition::Compile(Program::Builder& a_builder) const { return a_builder.Any(conditionsComponent->conditionSet.get()); }
 	Program::Expr ANDCondition::Compile(Program::Builder& a_builder) const { return a_builder.All(conditionsComponent->conditionSet.get()); }

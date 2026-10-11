@@ -47,8 +47,6 @@ namespace Conditions
 
 		[[nodiscard]] ConditionType GetConditionType() const override { return ConditionType::kNormal; }
 
-		[[nodiscard]] EssentialState GetEssential() const override { return _essentialState; }
-		void SetEssential(EssentialState a_essentialState) override { _essentialState = a_essentialState; };
 
 		// Anything past the description goes to the component's own constructor,
 		// so a component that takes more than a name and a description is added
@@ -81,7 +79,6 @@ namespace Conditions
 
 		bool _bDisabled = false;
 		bool _bNegated = false;
-		EssentialState _essentialState = EssentialState::kEssential;
 
 		std::vector<std::unique_ptr<IConditionComponent>> _components;
 

@@ -34,13 +34,6 @@ namespace Functions
 		kCustom
 	};
 
-	enum class EssentialState : uint8_t
-	{
-		kEssential,
-		kNonEssential_True,
-		kNonEssential_False
-	};
-
 	struct Trigger
 	{
 		RE::BSString event{};
@@ -86,8 +79,6 @@ namespace Functions
 
 		[[nodiscard]] virtual bool IsDisabled() const = 0;
 		virtual void SetDisabled(bool a_bDisabled) = 0;
-		[[nodiscard]] virtual EssentialState GetEssential() const = 0;
-		virtual void SetEssential(EssentialState a_essentialState) = 0;
 		[[nodiscard]] virtual bool IsValid() const { return true; }
 
 		[[nodiscard]] virtual uint32_t GetNumComponents() const = 0;

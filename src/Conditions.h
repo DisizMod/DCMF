@@ -30,6 +30,15 @@ namespace Conditions
 			_argument = a_argument;
 		}
 
+		// The row it stands for, kept to be written back
+		InvalidCondition(std::string_view a_argument, const rapidjson::Value& a_json)
+		{
+			_argument = a_argument;
+			_json.CopyFrom(a_json, _json.GetAllocator());
+		}
+
+		void Serialize(void* a_value, void* a_allocator) override;
+
 		[[nodiscard]] RE::BSString GetArgument() const override { return _argument.data(); }
 		[[nodiscard]] RE::BSString GetName() const override { return "! INVALID !"sv.data(); }
 		[[nodiscard]] RE::BSString GetDescription() const override { return "The condition was not found!"sv.data(); }
@@ -40,33 +49,6 @@ namespace Conditions
 	protected:
 		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
 		std::string _argument;
-	};
-
-	class InvalidNonEssentialCondition : public ConditionBase
-	{
-	public:
-		InvalidNonEssentialCondition() = default;
-
-		InvalidNonEssentialCondition(std::string_view a_argument, std::string_view a_name, const rapidjson::Value& a_json)
-		{
-			_argument = a_argument;
-			_name = a_name;
-			_json.CopyFrom(a_json, _json.GetAllocator());
-		}
-
-		void Serialize(void* a_value, void* a_allocator) override;
-
-		[[nodiscard]] RE::BSString GetArgument() const override { return _argument.data(); }
-		[[nodiscard]] RE::BSString GetName() const override;
-		[[nodiscard]] RE::BSString GetDescription() const override;
-		[[nodiscard]] constexpr REL::Version GetRequiredVersion() const override { return { 0, 0, 0 }; }
-
-		[[nodiscard]] bool IsValid() const override { return true; }
-
-	protected:
-		[[nodiscard]] Program::Expr Compile(Program::Builder& a_builder) const override;
-		std::string _argument;
-		std::string _name;
 		rapidjson::Document _json;
 	};
 

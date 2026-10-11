@@ -43,11 +43,6 @@ namespace Conditions
 			_bNegated = negatedIt->value.GetBool();
 		}
 
-		// essential
-		if (const auto essentialIt = object.FindMember("essential"); essentialIt != object.MemberEnd() && essentialIt->value.IsInt()) {
-			_essentialState = static_cast<EssentialState>(essentialIt->value.GetInt());
-		}
-
 		// comment
 		if (const auto commentIt = object.FindMember("comment"); commentIt != object.MemberEnd() && commentIt->value.IsString()) {
 			_comment = commentIt->value.GetString();
@@ -84,9 +79,6 @@ namespace Conditions
 
 		// negated
 		value.AddMember("negated", _bNegated, allocator);
-
-		// essential
-		value.AddMember("essential", static_cast<uint8_t>(_essentialState), allocator);
 
 		// comment
 		value.AddMember("comment", rapidjson::Value(_comment.data(), static_cast<rapidjson::SizeType>(_comment.length()), allocator), allocator);

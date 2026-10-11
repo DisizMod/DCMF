@@ -35,8 +35,6 @@ namespace Functions
 
 		[[nodiscard]] bool IsDisabled() const override { return _bDisabled; }
 		void SetDisabled(bool a_bDisabled) override { _bDisabled = a_bDisabled; }
-		[[nodiscard]] EssentialState GetEssential() const override { return _essentialState; };
-		void SetEssential(EssentialState a_essentialState) override { _essentialState = a_essentialState; };
 
 		[[nodiscard]] uint32_t GetNumComponents() const override { return static_cast<uint32_t>(_components.size()); }
 		[[nodiscard]] IFunctionComponent* GetComponent(uint32_t a_index) const override;
@@ -78,7 +76,6 @@ namespace Functions
 		bool RunImpl(RE::TESObjectREFR* a_refr, void* a_parentSubMod, Trigger* a_trigger) const override = 0;
 
 		bool _bDisabled = false;
-		EssentialState _essentialState = EssentialState::kEssential;
 
 		std::vector<std::unique_ptr<IFunctionComponent>> _components;
 

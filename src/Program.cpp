@@ -397,7 +397,8 @@ namespace Program
 				rule.owner = a_subMod;
 				rule.bModifier = a_subMod->GetKind() == SubModKind::kModifier;
 				builder.SetOwner(a_subMod);
-				rule.root = builder.All(a_subMod->GetConditionSet()).node;
+				// A clip or modifier with a condition or function it cannot read is in error and never holds, whatever its others say
+				rule.root = a_subMod->HasInvalidConditions() || a_subMod->HasInvalidFunctions() ? builder.Constant(0.f).node : builder.All(a_subMod->GetConditionSet()).node;
 				a_out.rules.push_back(rule);
 
 				// Every CONDITION function it runs, however deep: its list a rule beside the clip's or the modifier's

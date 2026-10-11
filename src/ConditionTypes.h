@@ -62,13 +62,6 @@ namespace Conditions
 	inline StateDataScope& operator&=(StateDataScope& a, StateDataScope b) { return a = a & b; }
 	inline StateDataScope& operator^=(StateDataScope& a, StateDataScope b) { return a = a ^ b; }
 
-	enum class EssentialState : uint8_t
-	{
-		kEssential,
-		kNonEssential_True,
-		kNonEssential_False
-	};
-
 	// The parent class of all conditions
 	class ICondition
 	{
@@ -108,8 +101,6 @@ namespace Conditions
 		void SetParentConditionSet(ConditionSet* a_conditionSet) { _parentConditionSet = a_conditionSet; }
 
 		[[nodiscard]] virtual ConditionType GetConditionType() const = 0;
-		[[nodiscard]] virtual EssentialState GetEssential() const = 0;
-		virtual void SetEssential(EssentialState a_essentialState) = 0;
 
 		[[nodiscard]] virtual RE::BSString GetComment() const = 0;
 		virtual void SetComment(const char* a_comment) = 0;
