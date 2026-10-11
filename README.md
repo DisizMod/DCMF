@@ -157,10 +157,10 @@ so DCMF stays its only writer. Copy the header into your project and call
   wrote them, without offsets.
 - `MorphGeneration(actor)` goes up each time DCMF writes new morphs on the actor
   or binds its shapes again: the moment to rebuild from `CopyPositions`.
-- Version 2 (`GetAPI2()`) adds `SetRotations(actor, shape, owner, vertices,
-  xyzw, count)`: a unit quaternion per vertex that turns its normal, tangent and
-  bitangent (base + morphs) at upload, so a tangent-space normal map's lighting
-  follows a dent. Owners' rotations compose; `ClearOffsets` takes them off too.
+- `SetRotations(actor, shape, owner, vertices, xyzw, count)`: a unit quaternion
+  per vertex that turns its normal, tangent and bitangent (base + morphs) at
+  upload, so a tangent-space normal map's lighting follows a dent. Owners'
+  rotations compose; `ClearOffsets` takes them off too.
 
 Offsets go on at upload, in the frame they were set for. When only offsets
 change, only the vertices that have them now or had them before are uploaded,

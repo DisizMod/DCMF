@@ -1063,7 +1063,7 @@ namespace Apply
 
 namespace
 {
-	class VertexOffsetInterface : public DCMF_API::VertexOffset::IVertexOffsetInterface2
+	class VertexOffsetInterface : public DCMF_API::VertexOffset::IVertexOffsetInterface
 	{
 	public:
 		static VertexOffsetInterface* GetSingleton() noexcept
@@ -1194,8 +1194,7 @@ extern "C" __declspec(dllexport) DCMF_API::VertexOffset::IVertexOffsetInterface*
 		return nullptr;
 	}
 	logger::info("vertexoffset: RequestPluginAPI_VertexOffset called by {} {}, interface version {}", a_pluginName, a_pluginVersion, static_cast<std::uint8_t>(a_interfaceVersion) + 1);
-	// Version 2 extends version 1's table, so one object answers both
-	if (a_interfaceVersion == DCMF_API::VertexOffset::InterfaceVersion::V1 || a_interfaceVersion == DCMF_API::VertexOffset::InterfaceVersion::V2) {
+	if (a_interfaceVersion == DCMF_API::VertexOffset::InterfaceVersion::V1) {
 		return VertexOffsetInterface::GetSingleton();
 	}
 	logger::warn("vertexoffset: RequestPluginAPI_VertexOffset asked for an interface version this build does not have");
